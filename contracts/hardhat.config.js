@@ -1,9 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox");
 
-// ⚠️ IMPORTANT: Replace this with your MetaMask private key
-// Get it from: MetaMask → Three dots → Account details → Show private key
-// Remove the "0x" from the beginning if present
-const PRIVATE_KEY = "PASTE_YOUR_PRIVATE_KEY_HERE";
+// ⚠️ IMPORTANT: This is your MetaMask private key
+const PRIVATE_KEY = "fa80cd821c471237e8ecc47aefd4975077147edf3f59557866cbf3e3d2b9e9b0";
 
 module.exports = {
   solidity: "0.8.20",
