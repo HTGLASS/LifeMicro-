@@ -19,7 +19,7 @@ try {
 // Rewarded Ad Unit IDs
 const REWARDED_AD_IDS = {
   ios: 'ca-app-pub-3008579178451093/5253805299',
-  android: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX', // Add your Android rewarded ad unit ID here
+  android: 'ca-app-pub-3008579178451093/5896444339',
 };
 
 interface Props {
