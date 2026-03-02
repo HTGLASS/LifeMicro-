@@ -179,126 +179,77 @@ class ContextAnswer(BaseModel):
 # ============== AI TASK GENERATION ==============
 
 async def generate_ai_tasks(user: dict, context_answer: Optional[str] = None) -> List[dict]:
-    """Generate personalized micro-tasks using AI"""
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    
+    """Generate personalized micro-tasks from library (FREE - no AI cost!)"""
     preferences = user.get('preferences', {})
     goals = preferences.get('goals', ['focus'])
     available_time = preferences.get('available_time', '15min')
-    productive_time = preferences.get('productive_time', 'morning')
-    streak = user.get('streak_count', 0)
     
-    # Map time to actual minutes
-    time_map = {
-        '5min': 5,
-        '15min': 15,
-        '30min': 30,
-        '60min': 60
-    }
-    max_time = time_map.get(available_time, 15)
+    # Use the pre-built task library - NO API COST!
+    return get_tasks_from_library(goals, context_answer, available_time)
+
+def get_tasks_from_library(goals: List[str], context_answer: Optional[str] = None, available_time: str = "15min") -> List[dict]:
+    """Get tasks from pre-generated library - NO AI COST!"""
+    from task_library import TASK_LIBRARY, TIME_FILTERS
     
-    # Create the AI prompt
-    goals_str = ", ".join(goals) if goals else "general wellbeing"
-    context_str = f"\nUser's current context: {context_answer}" if context_answer else ""
+    # Determine energy level from context
+    energy_level = "medium"
+    if context_answer:
+        answer_lower = context_answer.lower()
+        if any(word in answer_lower for word in ["energized", "high", "motivated", "great"]):
+            energy_level = "high"
+        elif any(word in answer_lower for word in ["tired", "low", "exhausted", "stressed", "winding"]):
+            energy_level = "low"
     
-    prompt = f"""You are a life coach AI. Generate 3 small, achievable micro-tasks for a user.
+    # Get max time in minutes
+    max_time = TIME_FILTERS.get(available_time, 15)
+    
+    # Collect eligible tasks
+    eligible_tasks = []
+    
+    for goal in goals:
+        if goal in TASK_LIBRARY:
+            goal_tasks = TASK_LIBRARY[goal]
+            for task in goal_tasks:
+                # Parse time estimate
+                time_str = task.get("time_estimate", "5 min")
+                task_time = int(time_str.replace(" min", "").replace("min", "")) if "min" in time_str else 5
+                
+                # Filter by time
+                if task_time <= max_time:
+                    task_with_category = {**task, "goal_category": goal}
+                    eligible_tasks.append(task_with_category)
+    
+    # If no goals matched, use focus and health as defaults
+    if not eligible_tasks:
+        for goal in ["focus", "health"]:
+            if goal in TASK_LIBRARY:
+                for task in TASK_LIBRARY[goal][:10]:
+                    task_with_category = {**task, "goal_category": goal}
+                    eligible_tasks.append(task_with_category)
+    
+    # Filter by energy level
+    if energy_level == "low":
+        # Prefer calmer tasks
+        calm_keywords = ["breathing", "stretch", "water", "mindful", "gratitude", "sit", "reflect", "pause"]
+        calm_tasks = [t for t in eligible_tasks if any(kw in t["title"].lower() or kw in t["description"].lower() for kw in calm_keywords)]
+        if len(calm_tasks) >= 3:
+            eligible_tasks = calm_tasks
+    elif energy_level == "high":
+        # Prefer active tasks
+        active_keywords = ["jump", "walk", "exercise", "challenge", "sprint", "burpee", "squat", "active"]
+        active_tasks = [t for t in eligible_tasks if any(kw in t["title"].lower() or kw in t["description"].lower() for kw in active_keywords)]
+        if len(active_tasks) >= 3:
+            eligible_tasks = active_tasks
+    
+    # Randomly select 3 tasks
+    selected = random.sample(eligible_tasks, min(3, len(eligible_tasks)))
+    
+    return selected
 
-User Profile:
-- Goals: {goals_str}
-- Most productive time: {productive_time}
-- Available time: {max_time} minutes total
-- Current streak: {streak} days
-{context_str}
-
-Rules:
-1. Each task should take 2-10 minutes max
-2. Tasks should be specific and actionable
-3. Tasks should relate to their goals
-4. Make tasks encouraging but realistic
-5. Vary difficulty based on streak (higher streak = slightly more challenging)
-
-Return EXACTLY 3 tasks in this JSON format (no markdown, just JSON):
-[
-  {{
-    "title": "Short task title",
-    "description": "Brief encouraging description of what to do",
-    "time_estimate": "X min",
-    "reward_amount": Y,
-    "goal_category": "one of: fitness, focus, business, relationships, spiritual, creativity, health"
-  }}
-]
-
-Reward amounts should be:
-- Easy tasks: 5-10 MICO
-- Medium tasks: 10-20 MICO
-- Challenging tasks: 20-30 MICO"""
-
-    try:
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"task-gen-{user.get('id', 'unknown')}",
-            system_message="You are a helpful life coach that generates small, achievable daily tasks."
-        ).with_model("openai", "gpt-4o")
-        
-        user_message = UserMessage(text=prompt)
-        response = await chat.send_message(user_message)
-        
-        # Parse the JSON response
-        import json
-        # Clean up response - remove markdown code blocks if present
-        response = response.strip()
-        if response.startswith("```"):
-            response = response.split("```")[1]
-            if response.startswith("json"):
-                response = response[4:]
-        response = response.strip()
-        
-        tasks = json.loads(response)
-        return tasks
-    except Exception as e:
-        logger.error(f"AI task generation failed: {e}")
-        # Return fallback tasks
-        return get_fallback_tasks(goals)
-
+# Legacy function for backwards compatibility
 def get_fallback_tasks(goals: List[str]) -> List[dict]:
-    """Fallback tasks if AI generation fails"""
-    fallback_tasks = {
-        "fitness": [
-            {"title": "Quick Stretch Break", "description": "Stand up and stretch your arms, legs, and back for 2 minutes", "time_estimate": "2 min", "reward_amount": 5, "goal_category": "fitness"},
-            {"title": "Drink Water", "description": "Drink a full glass of water right now", "time_estimate": "1 min", "reward_amount": 3, "goal_category": "fitness"},
-            {"title": "10 Jumping Jacks", "description": "Get your blood flowing with 10 quick jumping jacks", "time_estimate": "1 min", "reward_amount": 5, "goal_category": "fitness"},
-        ],
-        "focus": [
-            {"title": "Clear Your Desk", "description": "Take 2 minutes to organize your immediate workspace", "time_estimate": "2 min", "reward_amount": 5, "goal_category": "focus"},
-            {"title": "Deep Breathing", "description": "Take 5 deep breaths, focusing only on your breathing", "time_estimate": "1 min", "reward_amount": 3, "goal_category": "focus"},
-            {"title": "Set One Priority", "description": "Write down the ONE most important thing to do today", "time_estimate": "2 min", "reward_amount": 8, "goal_category": "focus"},
-        ],
-        "business": [
-            {"title": "Reply to One Email", "description": "Answer one email you've been putting off", "time_estimate": "5 min", "reward_amount": 10, "goal_category": "business"},
-            {"title": "Network Outreach", "description": "Send a quick message to one professional contact", "time_estimate": "3 min", "reward_amount": 8, "goal_category": "business"},
-            {"title": "Learn Something New", "description": "Read one article related to your industry", "time_estimate": "5 min", "reward_amount": 10, "goal_category": "business"},
-        ],
-        "relationships": [
-            {"title": "Send a Kind Message", "description": "Text a friend or family member something nice", "time_estimate": "2 min", "reward_amount": 8, "goal_category": "relationships"},
-            {"title": "Express Gratitude", "description": "Tell someone why you appreciate them", "time_estimate": "2 min", "reward_amount": 10, "goal_category": "relationships"},
-            {"title": "Plan a Catch-up", "description": "Schedule a call or meetup with someone you miss", "time_estimate": "3 min", "reward_amount": 8, "goal_category": "relationships"},
-        ],
-        "spiritual": [
-            {"title": "Mindful Moment", "description": "Close your eyes and be present for 60 seconds", "time_estimate": "1 min", "reward_amount": 5, "goal_category": "spiritual"},
-            {"title": "Gratitude Note", "description": "Write down 3 things you're grateful for today", "time_estimate": "3 min", "reward_amount": 10, "goal_category": "spiritual"},
-            {"title": "Nature Connection", "description": "Step outside and observe nature for 2 minutes", "time_estimate": "2 min", "reward_amount": 5, "goal_category": "spiritual"},
-        ],
-    }
-    
-    tasks = []
-    for goal in goals[:2]:  # Pick from first 2 goals
-        if goal in fallback_tasks:
-            tasks.extend(random.sample(fallback_tasks[goal], min(2, len(fallback_tasks[goal]))))
-    
-    if not tasks:
-        tasks = fallback_tasks.get("focus", [])[:3]
-    
-    return tasks[:3]
+    """Fallback tasks - now uses the library"""
+    return get_tasks_from_library(goals)
 
 # ============== API ROUTES ==============
 
