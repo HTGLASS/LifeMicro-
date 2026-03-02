@@ -1,0 +1,185 @@
+<analysis>
+
+**original_problem_statement**: The user wants to build a cross-platform mobile app called . It is an AI-powered life coach that provides users with small daily micro-wins.
+
+**PRODUCT REQUIREMENTS**:
+- **Core Functionality**:
+    - User onboarding to set goals (Fitness, Focus, Business, etc.), productivity times, and time availability.
+    - AI-generated daily micro-tasks (1-5 small actions).
+    - Task tracking with Done and Skip buttons.
+- **Crypto Reward System**:
+    - A built-in cryptocurrency named  on the Polygon blockchain (EVM-compatible).
+    - A custodial wallet system managed by the backend.
+    - Users earn MICO for completing tasks and maintaining streaks.
+    - Tokens can be redeemed in a marketplace.
+- **Marketplace**:
+    - Users redeem MICO for goods (discounts, digital downloads, etc.).
+    - Redemption burns the tokens.
+- **Ad System**:
+    - Contextual ads using Google AdMob shown next to micro-actions.
+    - User wants to use real ads.
+- **AI System**:
+    - Initially requested to use the Emergent LLM Key for task generation.
+    - The user later pivoted to a hybrid model: use a large, pre-generated task library for free, offline-capable tasks, but retain the ability to use live AI (OpenAI or Gemini) when the user is online.
+- **Push Notifications**:
+    - Use Firebase Cloud Messaging.
+- **Health Integration**:
+    - Apple Health & Google Fit integration is deferred to a later phase.
+
+**User's preferred language**: English
+
+**what currently exists?**
+A nearly feature-complete MVP of the LifeMicro app.
+- **Backend (FastAPI)**: Fully functional API with endpoints for user onboarding, profile management, task completion, streak tracking, a marketplace with seeded items, and token transactions (tracked in the database).
+- **Task Generation**: The system has been pivoted from a live AI-only model. It now uses a static  file in the backend, containing 175 pre-generated tasks across 7 categories. This makes the core task functionality free to operate.
+- **Frontend (Expo/React Native)**: A multi-screen mobile app built with Tamagui and Expo Router. It includes a welcome screen, onboarding flow, and a tabbed interface for Home (tasks), Wallet, and Shop (marketplace).
+- **Ads**: Google AdMob is fully configured for both iOS and Android, including Banner ads on the task screen and a Rewarded Ad button for bonus tokens. All of the user's provided App IDs and Ad Unit IDs have been integrated.
+- **Blockchain**: A Solidity-based ERC-20 token contract () has been created and successfully deployed to the Polygon Amoy testnet. The user's wallet address and contract address () are configured in the backend and frontend.
+
+**Last working item**:
+-   **Last item agent was working**: The agent had just acknowledged the user's refined request to create a hybrid task generation system. The goal is to use the live AI (OpenAI/Gemini) when the user is online and fall back to the pre-generated  library when the user is offline. The agent also agreed to expand the task library to a couple hundred tasks per category.
+-   **Status**: NOT STARTED
+-   **Agent Testing Done**: N
+-   **Which testing method agent to use?**: backend testing agent
+-   **User Testing Done**: N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1**: The task generation logic is incomplete and does not match the user's latest request for a hybrid model. (Priority: P0)
+-   **Issue 2**: The pre-generated task library () is too small. (Priority: P1)
+
+**Issues Detail**:
+-   **Issue 1: Implement Hybrid Task Generation**
+    -   **Attempted fixes**: The agent successfully implemented the first part of the user's idea (using a local JSON file), but did not implement the hybrid online/offline logic. The current implementation *only* uses the local .
+    -   **Next debug checklist**:
+        1.  Modify the  endpoint in .
+        2.  Add a parameter to the request, or logic in the backend, to determine the mode (e.g.,  vs ). The frontend would be responsible for detecting network status.
+        3.  If in online mode and the Universal Key has a balance, call the OpenAI/Gemini API.
+        4.  If in offline mode or the AI call fails (e.g., no balance), use the existing logic to pull tasks from .
+    -   **Why fix this issue and what will be achieved with the fix?**: This is the user's highest priority feature. It will create a robust app that offers deep personalization when possible (online AI) and remains fully functional and free to operate when not (offline library).
+    -   **Status**: NOT STARTED
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: backend
+    -   **Blocked on other issue**: None.
+
+-   **Issue 2: Expand Task Library**
+    -   **Attempted fixes**: The agent created the initial library with 25 tasks per category (175 total).
+    -   **Next debug checklist**:
+        1.  Create a temporary script or use an internal thought process to call the OpenAI/Gemini API repeatedly.
+        2.  Generate at least 200 tasks for each of the 7 categories (Fitness, Focus, Business, Relationships, Spiritual, Creativity, Health).
+        3.  Ensure tasks are varied and high-quality.
+        4.  Overwrite the existing  with the new, expanded library.
+    -   **Why fix this issue and what will be achieved with the fix?**: To fulfill the user's request and ensure long-term user engagement by providing a wide variety of tasks, reducing repetition.
+    -   **Status**: NOT STARTED
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: backend
+    -   **Blocked on other issue**: None.
+
+**In progress Task List**:
+None.
+
+**Upcoming and Future Tasks**
+- **Upcoming Tasks**:
+  - **P0: Firebase Push Notifications Setup**: The user has confirmed they want to set this up. The agent is blocked, waiting for the user to provide three pieces of information from their Firebase account:  (iOS),  (Android), and the  from the Cloud Messaging tab.
+- **Future Tasks**:
+  - **P1: Deploy MICO Token to Polygon Mainnet**: The current contract is on the Amoy testnet. The agent should guide the user through deploying to the mainnet when they are ready to launch with real-world tokenomics.
+  - **P2: App Store Asset Creation**: The agent offered to help create placeholder app icons, screenshots, and descriptions needed for submission to the Apple App Store and Google Play Store.
+  - **P3: Health Integration**: Integrate with Apple Health and Google Fit as originally requested but deferred by the user.
+
+**Completed work in this session**
+- **Backend API (DONE)**: A complete FastAPI backend was created in  to handle users, tasks, marketplace, wallet, streaks, and blockchain info.
+- **Initial Task Generation (DONE)**: An AI-powered task generation system was built and later pivoted to a free, library-based system using .
+- **Frontend Scaffolding (DONE)**: The entire Expo app structure was built, including onboarding, tab navigation, and screens for Home, Wallet, and Shop using Tamagui.
+- **AdMob Integration (DONE)**: Configured iOS and Android banner and rewarded ads using the user's own AdMob IDs in  and .
+- **Blockchain Smart Contract (DONE)**: Created and deployed the MICO ERC-20 token on the Polygon Amoy testnet. The agent assisted the user with the entire process, including debugging faucet issues.
+- **MongoDB ObjectId Serialization Fix (DONE)**: Resolved a critical bug preventing API endpoints from returning data by correctly serializing MongoDB's .
+- **User Guides (DONE)**: Provided detailed, copy-pasteable guides for setting up Polygon, Firebase, and AdMob, and for building the app with EAS.
+
+**Earlier issues found/mentioned but not fixed**
+None. The agent has addressed all issues raised so far.
+
+**Known issue recurrence from previous fork**
+None.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+- **Frontend**: Expo (React Native), Tamagui (UI Kit), Expo Router (Navigation), Zustand (State Management)
+- **Backend**: FastAPI (Python), MongoDB (Database)
+- **Blockchain**: Solidity, Hardhat, Ethers.js, Polygon (Amoy Testnet)
+- **Integrations**: Google AdMob, Emergent LLM Key (for OpenAI/Gemini)
+
+**key DB schema**
+-   **users**: 
+-   **marketplace_items**: 
+-   **transactions**: 
+
+**changes in tech stack**
+None. The stack has remained consistent with the initial plan.
+
+**All files of reference**
+-   : Contains the entire backend logic, including the crucial  endpoint that needs modification.
+-   : The new static database for tasks. This file needs to be expanded.
+-   : The main screen where tasks and ads are displayed.
+-   : Holds the configuration for Expo, including the AdMob App IDs.
+-   : The source code for the deployed MICO token.
+-   : Contains the saved MICO contract address and the placeholder for the Firebase server key.
+
+**Areas that need refactoring**:
+None. The code is modular and follows good practices for an MVP.
+
+**key api endpoints**
+-   : Creates/updates a user profile.
+-   : **(NEEDS UPDATE)** Generates tasks for a user.
+-   : Marks a task as complete and awards tokens.
+-   : Fetches user data.
+-   : Fetches all marketplace items.
+-   : Redeems an item from the marketplace.
+-   : Provides contract info to the frontend.
+
+**Critical Info for New Agent**
+-   **Top Priority**: The user's most recent request is to implement a **hybrid task-generation model**. The current implementation is NOT hybrid; it only uses the static  file. You must update  to use live AI when online and the JSON file when offline.
+-   **Second Priority**: The user wants the  library expanded to a couple hundred tasks per category. You will need to use an LLM to generate this content and update the file.
+-   **Blocked on User**: The setup for Firebase Push Notifications is pending. You are waiting for the user to provide , , and their Firebase Server Key.
+-   **Universal Key**: The user's AI functionality depends on their Universal Key balance. Remind the user that AI calls will fail if their balance is zero. The hybrid model mitigates this, but it's important context.
+
+**documents created in this job**
+- : Contains guides for Polygon, Firebase, and AdMob.
+- : The static database of micro-tasks.
+- : Configuration file for EAS builds.
+- , , : The complete smart contract project.
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User (Latest)**: Likes the idea of a hybrid online/offline task system. Requests the task database be expanded to a couple hundred tasks per category. **(PENDING ACTION)**
+2.  **User**: Proposes using AI once to generate a large database to save money, improving user experience. (Agent implemented the DB part).
+3.  **User**: Asks about using Gemini for free task generation. (Agent clarified costs).
+4.  **User**: States they are traveling and will provide Firebase info later. **(PENDING USER)**
+5.  **User**: Asks for instructions on how to set up Firebase push notifications. (Agent provided guide).
+6.  **User**: Provides the working MICO contract address: . (Agent saved it).
+7.  **User**: Confirms the blockchain and coins are set up and wants to finalize the app for publishing. (Agent provided a checklist).
+8.  **User**: Reports the first contract address didn't work and was a personal address. (Agent diagnosed the issue).
+9.  **User**: Provides their MetaMask private key for deployment assistance. (Agent used it to deploy).
+10. **User**: Provides their MetaMask wallet address. (Agent confirmed it).
+
+**Project Health Check:**
+- **Broken**: The AI generation part of the task system is effectively disabled. The logic in  needs to be updated to support the hybrid model.
+- **Mocked**: No mocked data. The app uses a real database and a static JSON file for tasks.
+
+**3rd Party Integrations**
+-   **OpenAI GPT-4o / Google Gemini**: For AI task generation. Uses Emergent LLM Key.
+-   **Google AdMob**: For in-app advertising. Requires User API Key (which has been provided and configured).
+-   **Polygon**: For the MICO cryptocurrency. Requires user's own wallet and keys for deployment and management.
+
+**Testing status**
+-   **Testing agent used after significant changes**: NO. The agent performed manual  tests after major backend changes but did not use a formal testing agent after the pivot to the  library.
+-   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Test files created**: None.
+-   **Known regressions**: None.
+
+**Credentials to test flow:**
+No user credentials are required for testing. The app flow starts with onboarding a new user.
+
+**What agent forgot to execute**
+The agent did not fully implement the user's latest request (Chat 213). It acknowledged the need for a **hybrid (online-AI/offline-DB) model** and a **larger task database** but only set the stage for this work. The current implementation is DB-only, and the database is small. This is the most critical pending task.
+
+</analysis>

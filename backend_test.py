@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://lifemicro-preview.preview.emergentagent.com/api"
+BASE_URL = "https://lifemicro-preview-1.preview.emergentagent.com/api"
 TEST_DEVICE_ID = "test_backend_456"
 
 # Colors for output
