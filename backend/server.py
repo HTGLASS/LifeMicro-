@@ -638,6 +638,46 @@ async def get_user_redemptions(user_id: str):
     redemptions = await db.redemptions.find({"user_id": user_id}).sort("created_at", -1).to_list(50)
     return {"redemptions": [serialize_doc(r) for r in redemptions]}
 
+# ---------- PUSH NOTIFICATION ROUTES ----------
+
+class PushTokenRegister(BaseModel):
+    user_id: str
+    fcm_token: str
+    platform: str  # "ios" or "android"
+
+@api_router.post("/register-push-token")
+async def register_push_token(token_data: PushTokenRegister):
+    """Register a device's FCM token for push notifications"""
+    # Check if user exists
+    user = await db.users.find_one({"id": token_data.user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Store/update the FCM token
+    await db.push_tokens.update_one(
+        {"user_id": token_data.user_id},
+        {
+            "$set": {
+                "user_id": token_data.user_id,
+                "fcm_token": token_data.fcm_token,
+                "platform": token_data.platform,
+                "updated_at": datetime.utcnow()
+            }
+        },
+        upsert=True
+    )
+    
+    logger.info(f"FCM token registered for user {token_data.user_id} on {token_data.platform}")
+    return {"success": True, "message": "Push token registered successfully"}
+
+@api_router.get("/push-tokens/{user_id}")
+async def get_push_token(user_id: str):
+    """Get the FCM token for a user (admin use)"""
+    token_doc = await db.push_tokens.find_one({"user_id": user_id})
+    if not token_doc:
+        raise HTTPException(status_code=404, detail="No push token found for user")
+    return serialize_doc(token_doc)
+
 # ---------- STATS ROUTES ----------
 
 @api_router.get("/stats/{user_id}")

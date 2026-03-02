@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "513033790332",
+    "project_id": "lifemicro-99a8d",
+    "storage_bucket": "lifemicro-99a8d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:513033790332:android:1829f4bc57933cd969baf9",
+        "android_client_info": {
+          "package_name": "com.lifemicro.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbE-UXLsuu29X4WqE3qQFQprgTNn36dPI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
