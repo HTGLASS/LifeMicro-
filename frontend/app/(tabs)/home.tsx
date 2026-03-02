@@ -17,6 +17,9 @@ import { useWalletStore } from '../../src/store/walletStore';
 import TaskCard from '../../src/components/TaskCard';
 import AdBanner from '../../src/components/AdBanner';
 import CelebrationModal from '../../src/components/CelebrationModal';
+import RewardedAdButton from '../../src/components/RewardedAdButton';
+
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function HomeScreen() {
   const { user } = useUserStore();
@@ -47,6 +50,26 @@ export default function HomeScreen() {
     await Promise.all([fetchTasks(user.id), fetchWallet(user.id)]);
     setRefreshing(false);
   }, [user?.id]);
+
+  // Handle reward from watching ad
+  const handleAdReward = async (amount: number) => {
+    if (!user?.id) return;
+    
+    // Award bonus tokens via backend
+    try {
+      // For now, we'll show a celebration - in production, you'd call a backend endpoint
+      setCelebrationData({
+        visible: true,
+        tokensEarned: amount,
+        streakBonus: 0,
+        newBalance: (wallet?.balance || 0) + amount,
+      });
+      // Refresh wallet after a short delay
+      setTimeout(() => fetchWallet(user.id), 1000);
+    } catch (error) {
+      console.error('Error awarding ad reward:', error);
+    }
+  };
 
   const handleGetTasks = async () => {
     if (!user?.id) return;
@@ -175,6 +198,9 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Rewarded Ad - Watch for bonus tokens */}
+        <RewardedAdButton onRewardEarned={handleAdReward} bonusAmount={25} />
 
         {/* Bottom Ad */}
         <AdBanner type="medium" />
