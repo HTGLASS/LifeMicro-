@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
 import { useWalletStore } from '../../src/store/walletStore';
 import { format } from 'date-fns';
+import { colors, shadows } from '../../src/constants/theme';
 
 export default function WalletScreen() {
   const { user } = useUserStore();
@@ -47,11 +48,11 @@ export default function WalletScreen() {
 
   const getTransactionColor = (type: string) => {
     switch (type) {
-      case 'earned': return '#10B981';
-      case 'redeemed': return '#EC4899';
-      case 'bonus': return '#F59E0B';
-      case 'streak': return '#F97316';
-      default: return '#6366F1';
+      case 'earned': return colors.accent.primary;
+      case 'redeemed': return colors.goals.relationships;
+      case 'bonus': return colors.status.warning;
+      case 'streak': return colors.goals.creativity;
+      default: return colors.goals.focus;
     }
   };
 
@@ -68,7 +69,7 @@ export default function WalletScreen() {
       {/* Balance Card */}
       <View style={styles.balanceCard}>
         <View style={styles.balanceIcon}>
-          <Ionicons name="wallet" size={32} color="#6366F1" />
+          <Ionicons name="wallet" size={32} color={colors.accent.primary} />
         </View>
         <Text style={styles.balanceLabel}>Available Balance</Text>
         <Text style={styles.balanceValue}>{wallet?.balance || 0}</Text>
@@ -76,19 +77,19 @@ export default function WalletScreen() {
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Ionicons name="trending-up" size={16} color="#10B981" />
+            <Ionicons name="trending-up" size={16} color={colors.accent.primary} />
             <Text style={styles.statValue}>{wallet?.total_earned || 0}</Text>
             <Text style={styles.statLabel}>Earned</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Ionicons name="gift" size={16} color="#EC4899" />
+            <Ionicons name="gift" size={16} color={colors.goals.relationships} />
             <Text style={styles.statValue}>{wallet?.total_redeemed || 0}</Text>
             <Text style={styles.statLabel}>Redeemed</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Ionicons name="flame" size={16} color="#F59E0B" />
+            <Ionicons name="flame" size={16} color={colors.status.warning} />
             <Text style={styles.statValue}>{wallet?.streak || 0}</Text>
             <Text style={styles.statLabel}>Day Streak</Text>
           </View>
@@ -119,7 +120,7 @@ export default function WalletScreen() {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent.primary} />
         }
       >
         {activeTab === 'transactions' ? (
@@ -139,14 +140,14 @@ export default function WalletScreen() {
                     {format(new Date(tx.timestamp), 'MMM d, h:mm a')}
                   </Text>
                 </View>
-                <Text style={[styles.txAmount, { color: tx.amount >= 0 ? '#10B981' : '#EC4899' }]}>
+                <Text style={[styles.txAmount, { color: tx.amount >= 0 ? colors.accent.primary : colors.goals.relationships }]}>
                   {tx.amount >= 0 ? '+' : ''}{tx.amount}
                 </Text>
               </View>
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="receipt-outline" size={48} color="#4B5563" />
+              <Ionicons name="receipt-outline" size={48} color={colors.text.tertiary} />
               <Text style={styles.emptyText}>No transactions yet</Text>
               <Text style={styles.emptySubtext}>Complete tasks to earn MICO</Text>
             </View>
@@ -156,7 +157,7 @@ export default function WalletScreen() {
             redemptions.map((redemption) => (
               <View key={redemption.id} style={styles.redemptionItem}>
                 <View style={styles.redemptionIcon}>
-                  <Ionicons name="gift" size={24} color="#EC4899" />
+                  <Ionicons name="gift" size={24} color={colors.goals.relationships} />
                 </View>
                 <View style={styles.redemptionInfo}>
                   <Text style={styles.redemptionTitle}>{redemption.item_title}</Text>
@@ -173,7 +174,7 @@ export default function WalletScreen() {
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="gift-outline" size={48} color="#4B5563" />
+              <Ionicons name="gift-outline" size={48} color={colors.text.tertiary} />
               <Text style={styles.emptyText}>No redemptions yet</Text>
               <Text style={styles.emptySubtext}>Visit the shop to redeem rewards</Text>
             </View>
@@ -189,7 +190,7 @@ export default function WalletScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
   },
   header: {
     flexDirection: 'row',
@@ -202,10 +203,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   tokenBadge: {
-    backgroundColor: '#6366F120',
+    backgroundColor: colors.accent.soft,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -213,40 +214,41 @@ const styles = StyleSheet.create({
   tokenName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#6366F1',
+    color: colors.accent.primary,
   },
   balanceCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     marginHorizontal: 16,
     marginVertical: 12,
     padding: 24,
     borderRadius: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: colors.border.primary,
   },
   balanceIcon: {
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: '#6366F120',
+    backgroundColor: colors.accent.soft,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    ...shadows.soft,
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginBottom: 4,
   },
   balanceValue: {
     fontSize: 48,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   tokenLabel: {
     fontSize: 14,
-    color: '#6366F1',
+    color: colors.accent.primary,
     fontWeight: '600',
     marginBottom: 20,
   },
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: colors.border.primary,
   },
   statItem: {
     flex: 1,
@@ -266,21 +268,21 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   statLabel: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   statDivider: {
     width: 1,
     height: 40,
-    backgroundColor: '#374151',
+    backgroundColor: colors.border.primary,
   },
   tabContainer: {
     flexDirection: 'row',
     marginHorizontal: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 12,
     padding: 4,
   },
@@ -291,15 +293,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   tabActive: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   tabTextActive: {
-    color: '#FFF',
+    color: colors.background.primary,
   },
   content: {
     flex: 1,
@@ -309,11 +311,13 @@ const styles = StyleSheet.create({
   transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     padding: 14,
     borderRadius: 14,
     marginBottom: 10,
     gap: 12,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
   },
   txIcon: {
     width: 40,
@@ -328,12 +332,12 @@ const styles = StyleSheet.create({
   txDescription: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 2,
   },
   txDate: {
     fontSize: 12,
-    color: '#6B7280',
+    color: colors.text.tertiary,
   },
   txAmount: {
     fontSize: 16,
@@ -342,17 +346,19 @@ const styles = StyleSheet.create({
   redemptionItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     padding: 16,
     borderRadius: 14,
     marginBottom: 10,
     gap: 12,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
   },
   redemptionIcon: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#EC489920',
+    backgroundColor: 'rgba(255, 138, 155, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -362,18 +368,18 @@ const styles = StyleSheet.create({
   redemptionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 4,
   },
   redemptionDate: {
     fontSize: 12,
-    color: '#6B7280',
+    color: colors.text.tertiary,
     marginBottom: 8,
   },
   codeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
@@ -381,17 +387,17 @@ const styles = StyleSheet.create({
   },
   codeLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: colors.text.tertiary,
   },
   codeValue: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#10B981',
+    color: colors.accent.primary,
   },
   redemptionCost: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#EC4899',
+    color: colors.goals.relationships,
   },
   emptyState: {
     alignItems: 'center',
@@ -400,12 +406,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
+    color: colors.text.tertiary,
     marginTop: 12,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#4B5563',
+    color: colors.text.tertiary,
     marginTop: 4,
   },
 });

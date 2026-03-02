@@ -3,15 +3,16 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView } fr
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
+import { colors, shadows } from '../../src/constants/theme';
 
 const GOALS = [
-  { id: 'fitness', label: 'Fitness', icon: 'fitness', color: '#10B981' },
-  { id: 'focus', label: 'Focus & Productivity', icon: 'bulb', color: '#6366F1' },
-  { id: 'business', label: 'Business & Career', icon: 'briefcase', color: '#F59E0B' },
-  { id: 'relationships', label: 'Relationships', icon: 'heart', color: '#EC4899' },
-  { id: 'spiritual', label: 'Spiritual Growth', icon: 'leaf', color: '#8B5CF6' },
-  { id: 'creativity', label: 'Creativity', icon: 'color-palette', color: '#F97316' },
-  { id: 'health', label: 'Health & Wellness', icon: 'medical', color: '#14B8A6' },
+  { id: 'fitness', label: 'Fitness', icon: 'fitness', color: colors.goals.fitness },
+  { id: 'focus', label: 'Focus & Productivity', icon: 'bulb', color: colors.goals.focus },
+  { id: 'business', label: 'Business & Career', icon: 'briefcase', color: colors.goals.business },
+  { id: 'relationships', label: 'Relationships', icon: 'heart', color: colors.goals.relationships },
+  { id: 'spiritual', label: 'Spiritual Growth', icon: 'leaf', color: colors.goals.spiritual },
+  { id: 'creativity', label: 'Creativity', icon: 'color-palette', color: colors.goals.creativity },
+  { id: 'health', label: 'Health & Wellness', icon: 'medical', color: colors.goals.health },
 ];
 
 export default function GoalsScreen() {
@@ -37,7 +38,7 @@ export default function GoalsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#F9FAFB" />
+          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.progress}>
           <View style={[styles.progressBar, { width: '33%' }]} />
@@ -68,7 +69,7 @@ export default function GoalsScreen() {
                 </Text>
                 {isSelected && (
                   <View style={[styles.checkmark, { backgroundColor: goal.color }]}>
-                    <Ionicons name="checkmark" size={14} color="#FFF" />
+                    <Ionicons name="checkmark" size={14} color={colors.background.primary} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -84,7 +85,7 @@ export default function GoalsScreen() {
           disabled={selectedGoals.length === 0}
         >
           <Text style={styles.buttonText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFF" />
+          <Ionicons name="arrow-forward" size={20} color={colors.background.primary} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -94,7 +95,7 @@ export default function GoalsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
   },
   header: {
     paddingHorizontal: 24,
@@ -105,18 +106,18 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   progress: {
     height: 4,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 2,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     borderRadius: 2,
   },
   content: {
@@ -127,12 +128,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginBottom: 32,
     lineHeight: 24,
   },
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 14,
     borderWidth: 2,
     borderColor: 'transparent',
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   checkmark: {
     width: 24,
@@ -176,19 +177,21 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   button: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingVertical: 16,
     borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
+    ...shadows.glow,
   },
   buttonDisabled: {
-    backgroundColor: '#374151',
+    backgroundColor: colors.border.primary,
+    shadowColor: 'transparent',
   },
   buttonText: {
-    color: '#FFF',
+    color: colors.background.primary,
     fontSize: 18,
     fontWeight: '700',
   },

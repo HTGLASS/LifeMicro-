@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useUserStore } from '../src/store/userStore';
 import { useRouter } from 'expo-router';
+import { colors } from '../src/constants/theme';
 
 export default function RootLayout() {
   const { user, isLoading, initializeUser } = useUserStore();
@@ -27,7 +28,7 @@ export default function RootLayout() {
   if (isLoading || !isReady) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <ActivityIndicator size="large" color={colors.accent.primary} />
       </View>
     );
   }
@@ -38,7 +39,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#0F172A' },
+          contentStyle: { backgroundColor: colors.background.primary },
           animation: 'slide_from_right',
         }}
       >
@@ -52,7 +53,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loading: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { colors, shadows } from '../constants/theme';
 
 interface CelebrationModalProps {
   visible: boolean;
@@ -36,7 +37,7 @@ export default function CelebrationModal({
       <View style={styles.overlay}>
         <Animated.View style={[styles.modal, { transform: [{ scale: scaleAnim }] }]}>
           <View style={styles.iconContainer}>
-            <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+            <Ionicons name="checkmark-circle" size={64} color={colors.accent.primary} />
           </View>
 
           <Text style={styles.title}>Great Job!</Text>
@@ -75,45 +76,50 @@ export default function CelebrationModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modal: {
-    backgroundColor: '#1F2937',
+    backgroundColor: colors.background.secondary,
     borderRadius: 24,
     padding: 24,
     width: '100%',
     maxWidth: 340,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.primary,
   },
   iconContainer: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#10B98120',
+    backgroundColor: colors.accent.soft,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    ...shadows.soft,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginBottom: 24,
   },
   rewardContainer: {
     width: '100%',
-    backgroundColor: '#111827',
+    backgroundColor: colors.background.primary,
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
   },
   rewardRow: {
     flexDirection: 'row',
@@ -123,25 +129,25 @@ const styles = StyleSheet.create({
   },
   rewardLabel: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   rewardValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#10B981',
+    color: colors.accent.primary,
   },
   bonusLabel: {
     fontSize: 14,
-    color: '#F59E0B',
+    color: colors.status.warning,
   },
   bonusValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#F59E0B',
+    color: colors.status.warning,
   },
   divider: {
     height: 1,
-    backgroundColor: '#374151',
+    backgroundColor: colors.border.primary,
     marginVertical: 12,
   },
   balanceRow: {
@@ -151,22 +157,23 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#F9FAFB',
+    color: colors.text.primary,
     fontWeight: '600',
   },
   balanceValue: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   button: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingHorizontal: 48,
     paddingVertical: 14,
     borderRadius: 12,
+    ...shadows.glow,
   },
   buttonText: {
-    color: '#FFF',
+    color: colors.background.primary,
     fontSize: 16,
     fontWeight: '700',
   },

@@ -175,17 +175,119 @@ class ContextAnswer(BaseModel):
     user_id: str
     question: str
     answer: str
+    mode: Optional[str] = "offline"  # "online" for AI, "offline" for library
+
+class GenerateTasksRequest(BaseModel):
+    context: Optional[ContextAnswer] = None
+    mode: str = "offline"  # "online" for AI, "offline" for library
 
 # ============== AI TASK GENERATION ==============
 
-async def generate_ai_tasks(user: dict, context_answer: Optional[str] = None) -> List[dict]:
-    """Generate personalized micro-tasks from library (FREE - no AI cost!)"""
+from emergentintegrations.llm.chat import LlmChat, UserMessage
+import json
+
+class TaskGenerationMode(str, Enum):
+    ONLINE = "online"   # Use AI for personalized tasks
+    OFFLINE = "offline" # Use pre-generated library
+
+async def generate_ai_tasks_with_llm(user: dict, context_answer: Optional[str] = None) -> List[dict]:
+    """Generate truly personalized tasks using AI (requires Emergent LLM Key balance)"""
+    preferences = user.get('preferences', {})
+    goals = preferences.get('goals', ['focus'])
+    available_time = preferences.get('available_time', '15min')
+    productive_time = preferences.get('productive_time', 'morning')
+    
+    # Build the prompt
+    goals_str = ", ".join(goals) if goals else "general wellness"
+    
+    # Determine energy from context
+    energy_context = ""
+    if context_answer:
+        energy_context = f"\nThe user's current state: {context_answer}"
+    
+    prompt = f"""Generate exactly 3 micro-tasks for a user with these preferences:
+- Goals: {goals_str}
+- Available time: {available_time}
+- Most productive time: {productive_time}{energy_context}
+
+Each task should be:
+1. Completable in 1-10 minutes
+2. Specific and actionable
+3. Motivating with a sense of accomplishment
+4. Matched to their energy level and goals
+
+Return ONLY a JSON array with exactly 3 tasks in this format:
+[
+  {{"title": "Task Title", "description": "Brief encouraging description", "time_estimate": "X min", "reward_amount": 10, "goal_category": "category"}}
+]
+
+reward_amount should be 3-25 based on effort (quick=3-8, medium=10-15, challenging=20-25).
+goal_category must be one of: fitness, focus, business, relationships, spiritual, creativity, health"""
+
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"task-gen-{user.get('id', 'unknown')}",
+            system_message="You are a supportive life coach AI that creates personalized micro-tasks. Be encouraging and specific. Always respond with valid JSON only."
+        ).with_model("openai", "gpt-4o")
+        
+        user_message = UserMessage(text=prompt)
+        response = await chat.send_message(user_message)
+        
+        # Parse the JSON response
+        # Clean up the response (remove markdown code blocks if present)
+        response_text = response.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+        response_text = response_text.strip()
+        
+        tasks = json.loads(response_text)
+        
+        # Validate and normalize tasks
+        valid_categories = ["fitness", "focus", "business", "relationships", "spiritual", "creativity", "health"]
+        normalized_tasks = []
+        for task in tasks[:3]:  # Ensure max 3 tasks
+            normalized_task = {
+                "title": task.get("title", "Quick Task"),
+                "description": task.get("description", "Complete this task"),
+                "time_estimate": task.get("time_estimate", "5 min"),
+                "reward_amount": min(max(task.get("reward_amount", 10), 3), 25),
+                "goal_category": task.get("goal_category", goals[0] if goals else "focus")
+            }
+            if normalized_task["goal_category"] not in valid_categories:
+                normalized_task["goal_category"] = goals[0] if goals else "focus"
+            normalized_tasks.append(normalized_task)
+        
+        logger.info(f"AI generated {len(normalized_tasks)} tasks for user {user.get('id')}")
+        return normalized_tasks
+        
+    except Exception as e:
+        logger.error(f"AI task generation failed: {str(e)}")
+        # Fall back to library
+        return get_tasks_from_library(goals, context_answer, available_time)
+
+async def generate_ai_tasks(user: dict, context_answer: Optional[str] = None, mode: str = "offline") -> List[dict]:
+    """
+    Hybrid task generation:
+    - online: Use AI for personalized tasks (requires Emergent LLM Key balance)
+    - offline: Use pre-generated library (FREE - no API cost!)
+    """
     preferences = user.get('preferences', {})
     goals = preferences.get('goals', ['focus'])
     available_time = preferences.get('available_time', '15min')
     
-    # Use the pre-built task library - NO API COST!
-    return get_tasks_from_library(goals, context_answer, available_time)
+    if mode == "online" and EMERGENT_LLM_KEY:
+        # Try AI generation
+        try:
+            return await generate_ai_tasks_with_llm(user, context_answer)
+        except Exception as e:
+            logger.warning(f"AI generation failed, falling back to library: {e}")
+            return get_tasks_from_library(goals, context_answer, available_time)
+    else:
+        # Use the pre-built task library - NO API COST!
+        return get_tasks_from_library(goals, context_answer, available_time)
 
 def get_tasks_from_library(goals: List[str], context_answer: Optional[str] = None, available_time: str = "15min") -> List[dict]:
     """Get tasks from pre-generated library - NO AI COST!"""
@@ -341,8 +443,14 @@ async def get_context_question(user_id: str):
     return random.choice(questions)
 
 @api_router.post("/tasks/{user_id}/generate")
-async def generate_tasks(user_id: str, context: Optional[ContextAnswer] = None):
-    """Generate new AI-powered micro-tasks for the user"""
+async def generate_tasks(user_id: str, request: Optional[GenerateTasksRequest] = None):
+    """
+    Generate micro-tasks for the user.
+    
+    Mode options:
+    - "online": Use AI for personalized tasks (requires Emergent LLM Key balance)
+    - "offline": Use pre-generated library (FREE - no API cost!)
+    """
     user = await db.users.find_one({"id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -358,9 +466,22 @@ async def generate_tasks(user_id: str, context: Optional[ContextAnswer] = None):
     if existing_pending >= 5:
         raise HTTPException(status_code=400, detail="You already have pending tasks. Complete or skip them first.")
     
-    # Generate AI tasks
-    context_answer = context.answer if context else None
-    ai_tasks = await generate_ai_tasks(user, context_answer)
+    # Determine mode and context
+    mode = "offline"
+    context_answer = None
+    context_question = None
+    
+    if request:
+        mode = request.mode or "offline"
+        if request.context:
+            context_answer = request.context.answer
+            context_question = request.context.question
+            # Override mode from context if provided
+            if request.context.mode:
+                mode = request.context.mode
+    
+    # Generate tasks based on mode
+    ai_tasks = await generate_ai_tasks(user, context_answer, mode)
     
     # Save tasks to database
     saved_tasks = []
@@ -372,13 +493,17 @@ async def generate_tasks(user_id: str, context: Optional[ContextAnswer] = None):
             time_estimate=task_data.get("time_estimate", "5 min"),
             reward_amount=task_data.get("reward_amount", 10),
             goal_category=task_data.get("goal_category", "focus"),
-            context_question=context.question if context else None,
+            context_question=context_question,
             context_answer=context_answer
         )
         await db.tasks.insert_one(task.model_dump())
         saved_tasks.append(task)
     
-    return {"tasks": [t.model_dump() for t in saved_tasks]}
+    return {
+        "tasks": [t.model_dump() for t in saved_tasks],
+        "mode": mode,
+        "source": "ai" if mode == "online" else "library"
+    }
 
 @api_router.get("/tasks/{user_id}")
 async def get_user_tasks(

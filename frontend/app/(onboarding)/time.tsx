@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView } fr
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
+import { colors, shadows } from '../../src/constants/theme';
 
 const PRODUCTIVE_TIMES = [
   { id: 'morning', label: 'Morning', desc: '6am - 12pm', icon: 'sunny-outline' },
@@ -37,7 +38,7 @@ export default function TimeScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#F9FAFB" />
+          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.progress}>
           <View style={[styles.progressBar, { width: '66%' }]} />
@@ -64,7 +65,7 @@ export default function TimeScreen() {
                 <Ionicons
                   name={time.icon as any}
                   size={28}
-                  color={isSelected ? '#6366F1' : '#9CA3AF'}
+                  color={isSelected ? colors.accent.primary : colors.text.secondary}
                 />
                 <Text style={[styles.optionLabel, isSelected && styles.labelSelected]}>
                   {time.label}
@@ -97,7 +98,7 @@ export default function TimeScreen() {
                 <Text style={styles.timeDesc}>{time.desc}</Text>
                 {isSelected && (
                   <View style={styles.checkmark}>
-                    <Ionicons name="checkmark" size={16} color="#FFF" />
+                    <Ionicons name="checkmark" size={16} color={colors.background.primary} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -113,7 +114,7 @@ export default function TimeScreen() {
           disabled={!productiveTime || !availableTime}
         >
           <Text style={styles.buttonText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFF" />
+          <Ionicons name="arrow-forward" size={20} color={colors.background.primary} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -123,7 +124,7 @@ export default function TimeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
   },
   header: {
     paddingHorizontal: 24,
@@ -134,18 +135,18 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   progress: {
     height: 4,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 2,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     borderRadius: 2,
   },
   content: {
@@ -156,12 +157,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginBottom: 24,
   },
   optionsGrid: {
@@ -172,7 +173,7 @@ const styles = StyleSheet.create({
   optionCard: {
     width: '48%',
     padding: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 14,
     borderWidth: 2,
     borderColor: 'transparent',
@@ -180,20 +181,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   optionSelected: {
-    borderColor: '#6366F1',
-    backgroundColor: '#6366F115',
+    borderColor: colors.accent.primary,
+    backgroundColor: colors.accent.soft,
   },
   optionLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   optionDesc: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   labelSelected: {
-    color: '#6366F1',
+    color: colors.accent.primary,
   },
   timeOptions: {
     gap: 12,
@@ -203,31 +204,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 14,
     borderWidth: 2,
     borderColor: 'transparent',
   },
   timeSelected: {
-    borderColor: '#6366F1',
-    backgroundColor: '#6366F115',
+    borderColor: colors.accent.primary,
+    backgroundColor: colors.accent.soft,
   },
   timeLabel: {
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   timeDesc: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginRight: 8,
   },
   checkmark: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -237,19 +238,21 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   button: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingVertical: 16,
     borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
+    ...shadows.glow,
   },
   buttonDisabled: {
-    backgroundColor: '#374151',
+    backgroundColor: colors.border.primary,
+    shadowColor: 'transparent',
   },
   buttonText: {
-    color: '#FFF',
+    color: colors.background.primary,
     fontSize: 18,
     fontWeight: '700',
   },

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MicroTask } from '../types';
+import { colors, shadows } from '../constants/theme';
 
 interface TaskCardProps {
   task: MicroTask;
@@ -11,13 +12,13 @@ interface TaskCardProps {
 }
 
 const GOAL_COLORS: Record<string, string> = {
-  fitness: '#10B981',
-  focus: '#6366F1',
-  business: '#F59E0B',
-  relationships: '#EC4899',
-  spiritual: '#8B5CF6',
-  creativity: '#F97316',
-  health: '#14B8A6',
+  fitness: colors.goals.fitness,
+  focus: colors.goals.focus,
+  business: colors.goals.business,
+  relationships: colors.goals.relationships,
+  spiritual: colors.goals.spiritual,
+  creativity: colors.goals.creativity,
+  health: colors.goals.health,
 };
 
 const GOAL_ICONS: Record<string, string> = {
@@ -31,7 +32,7 @@ const GOAL_ICONS: Record<string, string> = {
 };
 
 export default function TaskCard({ task, onComplete, onSkip, isProcessing }: TaskCardProps) {
-  const goalColor = GOAL_COLORS[task.goal_category] || '#6366F1';
+  const goalColor = GOAL_COLORS[task.goal_category] || colors.accent.primary;
   const goalIcon = GOAL_ICONS[task.goal_category] || 'checkmark-circle';
 
   return (
@@ -53,7 +54,7 @@ export default function TaskCard({ task, onComplete, onSkip, isProcessing }: Tas
 
       <View style={styles.footer}>
         <View style={styles.timeEstimate}>
-          <Ionicons name="time-outline" size={16} color="#9CA3AF" />
+          <Ionicons name="time-outline" size={16} color={colors.text.secondary} />
           <Text style={styles.timeText}>{task.time_estimate}</Text>
         </View>
 
@@ -71,7 +72,7 @@ export default function TaskCard({ task, onComplete, onSkip, isProcessing }: Tas
             onPress={onComplete}
             disabled={isProcessing}
           >
-            <Ionicons name="checkmark" size={20} color="#FFF" />
+            <Ionicons name="checkmark" size={20} color={colors.background.primary} />
             <Text style={styles.doneText}>Done</Text>
           </TouchableOpacity>
         </View>
@@ -82,17 +83,15 @@ export default function TaskCard({ task, onComplete, onSkip, isProcessing }: Tas
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1F2937',
+    backgroundColor: colors.background.secondary,
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 8,
     borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+    ...shadows.card,
   },
   header: {
     flexDirection: 'row',
@@ -114,25 +113,25 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   rewardBadge: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.accent.soft,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   rewardText: {
-    color: '#B45309',
+    color: colors.accent.primary,
     fontSize: 12,
     fontWeight: '700',
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -147,7 +146,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   timeText: {
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     fontSize: 13,
   },
   actions: {
@@ -160,7 +159,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   skipText: {
-    color: '#9CA3AF',
+    color: colors.text.tertiary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -173,7 +172,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   doneText: {
-    color: '#FFF',
+    color: colors.background.primary,
     fontSize: 14,
     fontWeight: '700',
   },

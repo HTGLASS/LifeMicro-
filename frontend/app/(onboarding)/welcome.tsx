@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { colors, shadows } from '../../src/constants/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -12,10 +12,12 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Logo/Icon Area */}
+        {/* Logo/Icon Area with Glow Effect */}
         <View style={styles.logoContainer}>
-          <View style={styles.iconWrapper}>
-            <Ionicons name="sparkles" size={48} color="#F9FAFB" />
+          <View style={styles.glowRing}>
+            <View style={styles.iconWrapper}>
+              <Ionicons name="sparkles" size={48} color={colors.text.primary} />
+            </View>
           </View>
           <Text style={styles.appName}>LifeMicro</Text>
           <Text style={styles.tagline}>Small wins, big changes</Text>
@@ -24,8 +26,8 @@ export default function WelcomeScreen() {
         {/* Features */}
         <View style={styles.features}>
           <View style={styles.featureRow}>
-            <View style={styles.featureIcon}>
-              <Ionicons name="bulb-outline" size={24} color="#6366F1" />
+            <View style={[styles.featureIcon, { backgroundColor: colors.accent.soft }]}>
+              <Ionicons name="bulb-outline" size={24} color={colors.accent.primary} />
             </View>
             <View style={styles.featureText}>
               <Text style={styles.featureTitle}>AI-Powered Tasks</Text>
@@ -34,8 +36,8 @@ export default function WelcomeScreen() {
           </View>
 
           <View style={styles.featureRow}>
-            <View style={styles.featureIcon}>
-              <Ionicons name="trophy-outline" size={24} color="#F59E0B" />
+            <View style={[styles.featureIcon, { backgroundColor: 'rgba(255, 181, 71, 0.15)' }]}>
+              <Ionicons name="trophy-outline" size={24} color={colors.status.warning} />
             </View>
             <View style={styles.featureText}>
               <Text style={styles.featureTitle}>Earn Rewards</Text>
@@ -44,8 +46,8 @@ export default function WelcomeScreen() {
           </View>
 
           <View style={styles.featureRow}>
-            <View style={styles.featureIcon}>
-              <Ionicons name="gift-outline" size={24} color="#10B981" />
+            <View style={[styles.featureIcon, { backgroundColor: colors.accent.soft }]}>
+              <Ionicons name="gift-outline" size={24} color={colors.accent.primary} />
             </View>
             <View style={styles.featureText}>
               <Text style={styles.featureTitle}>Redeem Prizes</Text>
@@ -54,13 +56,13 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        {/* CTA Button */}
+        {/* CTA Button with Glow */}
         <TouchableOpacity
           style={styles.button}
           onPress={() => router.push('/(onboarding)/goals')}
         >
           <Text style={styles.buttonText}>Get Started</Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFF" />
+          <Ionicons name="arrow-forward" size={20} color={colors.background.primary} />
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
@@ -74,7 +76,7 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
   },
   content: {
     flex: 1,
@@ -85,29 +87,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
-  iconWrapper: {
-    width: 100,
-    height: 100,
-    borderRadius: 28,
-    backgroundColor: '#6366F1',
+  glowRing: {
+    width: 120,
+    height: 120,
+    borderRadius: 36,
+    backgroundColor: colors.background.secondary,
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
+    marginBottom: 20,
+    ...shadows.glow,
+  },
+  iconWrapper: {
+    width: 90,
+    height: 90,
+    borderRadius: 28,
+    backgroundColor: colors.background.tertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   appName: {
     fontSize: 36,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     letterSpacing: -1,
   },
   tagline: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginTop: 8,
   },
   features: {
@@ -120,10 +128,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#1E293B',
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -133,35 +140,31 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 2,
   },
   featureDesc: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   button: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingVertical: 16,
     borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    ...shadows.glow,
   },
   buttonText: {
-    color: '#FFF',
+    color: colors.background.primary,
     fontSize: 18,
     fontWeight: '700',
   },
   disclaimer: {
     textAlign: 'center',
-    color: '#6B7280',
+    color: colors.text.tertiary,
     fontSize: 13,
     marginTop: 16,
   },

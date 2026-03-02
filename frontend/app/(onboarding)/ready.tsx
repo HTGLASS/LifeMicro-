@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicat
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
+import { colors, shadows } from '../../src/constants/theme';
 
 export default function ReadyScreen() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function ReadyScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#F9FAFB" />
+          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.progress}>
           <View style={[styles.progressBar, { width: '100%' }]} />
@@ -32,7 +33,7 @@ export default function ReadyScreen() {
 
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="rocket" size={56} color="#F9FAFB" />
+          <Ionicons name="rocket" size={56} color={colors.background.primary} />
         </View>
 
         <Text style={styles.title}>You're all set!</Text>
@@ -41,7 +42,7 @@ export default function ReadyScreen() {
         {/* Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Ionicons name="flag-outline" size={20} color="#6366F1" />
+            <Ionicons name="flag-outline" size={20} color={colors.accent.primary} />
             <Text style={styles.summaryLabel}>Your Goals</Text>
             <Text style={styles.summaryValue}>
               {goals.length} selected
@@ -51,7 +52,7 @@ export default function ReadyScreen() {
           <View style={styles.divider} />
 
           <View style={styles.summaryRow}>
-            <Ionicons name="time-outline" size={20} color="#F59E0B" />
+            <Ionicons name="time-outline" size={20} color={colors.status.warning} />
             <Text style={styles.summaryLabel}>Best Time</Text>
             <Text style={styles.summaryValue}>
               {productiveTime.charAt(0).toUpperCase() + productiveTime.slice(1)}
@@ -61,7 +62,7 @@ export default function ReadyScreen() {
           <View style={styles.divider} />
 
           <View style={styles.summaryRow}>
-            <Ionicons name="hourglass-outline" size={20} color="#10B981" />
+            <Ionicons name="hourglass-outline" size={20} color={colors.accent.primary} />
             <Text style={styles.summaryLabel}>Daily Time</Text>
             <Text style={styles.summaryValue}>{availableTime}</Text>
           </View>
@@ -69,7 +70,7 @@ export default function ReadyScreen() {
 
         {/* Bonus Info */}
         <View style={styles.bonusCard}>
-          <Ionicons name="gift" size={24} color="#F59E0B" />
+          <Ionicons name="gift" size={24} color={colors.status.warning} />
           <View style={styles.bonusText}>
             <Text style={styles.bonusTitle}>Welcome Bonus!</Text>
             <Text style={styles.bonusDesc}>Complete your first task to earn 50 MICO</Text>
@@ -84,11 +85,11 @@ export default function ReadyScreen() {
           disabled={isLoading}
         >
           {isLoading ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={colors.background.primary} />
           ) : (
             <>
               <Text style={styles.buttonText}>Start My Journey</Text>
-              <Ionicons name="sparkles" size={20} color="#FFF" />
+              <Ionicons name="sparkles" size={20} color={colors.background.primary} />
             </>
           )}
         </TouchableOpacity>
@@ -100,7 +101,7 @@ export default function ReadyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
   },
   header: {
     paddingHorizontal: 24,
@@ -111,18 +112,18 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   progress: {
     height: 4,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 2,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     borderRadius: 2,
   },
   content: {
@@ -134,35 +135,33 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 28,
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
     marginBottom: 24,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
+    ...shadows.glow,
   },
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: 32,
   },
   summaryCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border.primary,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -172,27 +171,27 @@ const styles = StyleSheet.create({
   summaryLabel: {
     flex: 1,
     fontSize: 15,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   summaryValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   divider: {
     height: 1,
-    backgroundColor: '#374151',
+    backgroundColor: colors.border.primary,
     marginVertical: 14,
   },
   bonusCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F59E0B15',
+    backgroundColor: 'rgba(255, 181, 71, 0.1)',
     borderRadius: 14,
     padding: 16,
     gap: 14,
     borderWidth: 1,
-    borderColor: '#F59E0B30',
+    borderColor: 'rgba(255, 181, 71, 0.25)',
   },
   bonusText: {
     flex: 1,
@@ -200,12 +199,13 @@ const styles = StyleSheet.create({
   bonusTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#F59E0B',
+    color: colors.status.warning,
     marginBottom: 2,
   },
   bonusDesc: {
     fontSize: 14,
-    color: '#FCD34D',
+    color: colors.status.warning,
+    opacity: 0.8,
   },
   footer: {
     paddingHorizontal: 24,
@@ -213,21 +213,17 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   button: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingVertical: 16,
     borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    ...shadows.glow,
   },
   buttonText: {
-    color: '#FFF',
+    color: colors.background.primary,
     fontSize: 18,
     fontWeight: '700',
   },

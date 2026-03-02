@@ -16,6 +16,7 @@ import { useUserStore } from '../../src/store/userStore';
 import { useWalletStore } from '../../src/store/walletStore';
 import { MarketplaceItem } from '../../src/types';
 import AdBanner from '../../src/components/AdBanner';
+import { colors, shadows } from '../../src/constants/theme';
 
 const CATEGORY_ICONS: Record<string, string> = {
   food: 'cafe',
@@ -83,7 +84,7 @@ export default function ShopScreen() {
           <Text style={styles.subtitle}>Redeem your MICO tokens</Text>
         </View>
         <View style={styles.balanceBadge}>
-          <Ionicons name="wallet" size={16} color="#6366F1" />
+          <Ionicons name="wallet" size={16} color={colors.accent.primary} />
           <Text style={styles.balanceText}>{wallet?.balance || 0}</Text>
         </View>
       </View>
@@ -104,7 +105,7 @@ export default function ShopScreen() {
             <Ionicons
               name={(CATEGORY_ICONS[category] || 'pricetag') as any}
               size={16}
-              color={selectedCategory === category ? '#FFF' : '#9CA3AF'}
+              color={selectedCategory === category ? colors.background.primary : colors.text.secondary}
             />
             <Text style={[styles.categoryText, selectedCategory === category && styles.categoryTextActive]}>
               {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -117,7 +118,7 @@ export default function ShopScreen() {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent.primary} />
         }
       >
         <AdBanner type="small" />
@@ -143,7 +144,7 @@ export default function ShopScreen() {
                 </Text>
                 <View style={styles.itemFooter}>
                   <View style={[styles.priceBadge, !canAfford && styles.priceBadgeDisabled]}>
-                    <Ionicons name="diamond" size={12} color={canAfford ? '#6366F1' : '#6B7280'} />
+                    <Ionicons name="diamond" size={12} color={canAfford ? colors.accent.primary : colors.text.tertiary} />
                     <Text style={[styles.priceText, !canAfford && styles.priceTextDisabled]}>
                       {item.token_cost}
                     </Text>
@@ -159,7 +160,7 @@ export default function ShopScreen() {
 
         {filteredItems.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="storefront-outline" size={48} color="#4B5563" />
+            <Ionicons name="storefront-outline" size={48} color={colors.text.tertiary} />
             <Text style={styles.emptyText}>No items in this category</Text>
           </View>
         )}
@@ -177,7 +178,7 @@ export default function ShopScreen() {
                   style={styles.closeButton}
                   onPress={() => setSelectedItem(null)}
                 >
-                  <Ionicons name="close" size={24} color="#9CA3AF" />
+                  <Ionicons name="close" size={24} color={colors.text.secondary} />
                 </TouchableOpacity>
 
                 <View style={styles.modalIconContainer}>
@@ -192,7 +193,7 @@ export default function ShopScreen() {
                 <View style={styles.modalPriceContainer}>
                   <Text style={styles.modalPriceLabel}>Price</Text>
                   <View style={styles.modalPriceBadge}>
-                    <Ionicons name="diamond" size={18} color="#6366F1" />
+                    <Ionicons name="diamond" size={18} color={colors.accent.primary} />
                     <Text style={styles.modalPriceValue}>{selectedItem.token_cost} MICO</Text>
                   </View>
                 </View>
@@ -204,7 +205,7 @@ export default function ShopScreen() {
 
                 {(wallet?.balance || 0) < selectedItem.token_cost && (
                   <View style={styles.warningBanner}>
-                    <Ionicons name="warning" size={18} color="#F59E0B" />
+                    <Ionicons name="warning" size={18} color={colors.status.warning} />
                     <Text style={styles.warningText}>
                       You need {selectedItem.token_cost - (wallet?.balance || 0)} more MICO
                     </Text>
@@ -220,10 +221,10 @@ export default function ShopScreen() {
                   disabled={(wallet?.balance || 0) < selectedItem.token_cost || isRedeeming}
                 >
                   {isRedeeming ? (
-                    <ActivityIndicator color="#FFF" />
+                    <ActivityIndicator color={colors.background.primary} />
                   ) : (
                     <>
-                      <Ionicons name="gift" size={20} color="#FFF" />
+                      <Ionicons name="gift" size={20} color={colors.background.primary} />
                       <Text style={styles.redeemButtonText}>Redeem Now</Text>
                     </>
                   )}
@@ -239,7 +240,7 @@ export default function ShopScreen() {
         <View style={styles.successOverlay}>
           <View style={styles.successContent}>
             <View style={styles.successIcon}>
-              <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+              <Ionicons name="checkmark-circle" size={64} color={colors.accent.primary} />
             </View>
             <Text style={styles.successTitle}>Redemption Successful!</Text>
             <Text style={styles.successSubtitle}>Your reward code:</Text>
@@ -263,7 +264,7 @@ export default function ShopScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
   },
   header: {
     flexDirection: 'row',
@@ -276,17 +277,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   subtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginTop: 2,
   },
   balanceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6366F120',
+    backgroundColor: colors.accent.soft,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
   balanceText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#6366F1',
+    color: colors.accent.primary,
   },
   categoriesContainer: {
     maxHeight: 50,
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -315,15 +316,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   categoryChipActive: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
   },
   categoryText: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     fontWeight: '600',
   },
   categoryTextActive: {
-    color: '#FFF',
+    color: colors.background.primary,
   },
   content: {
     flex: 1,
@@ -337,15 +338,17 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     width: '47%',
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 16,
     padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
   },
   itemIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
@@ -356,12 +359,12 @@ const styles = StyleSheet.create({
   itemTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 4,
   },
   itemDescription: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     lineHeight: 16,
     marginBottom: 10,
   },
@@ -373,26 +376,26 @@ const styles = StyleSheet.create({
   priceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6366F120',
+    backgroundColor: colors.accent.soft,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     gap: 4,
   },
   priceBadgeDisabled: {
-    backgroundColor: '#374151',
+    backgroundColor: colors.border.primary,
   },
   priceText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6366F1',
+    color: colors.accent.primary,
   },
   priceTextDisabled: {
-    color: '#6B7280',
+    color: colors.text.tertiary,
   },
   stockText: {
     fontSize: 11,
-    color: '#F59E0B',
+    color: colors.status.warning,
     fontWeight: '600',
   },
   emptyState: {
@@ -401,16 +404,16 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: colors.text.tertiary,
     marginTop: 12,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -426,7 +429,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 24,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
@@ -438,13 +441,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     textAlign: 'center',
     marginBottom: 8,
   },
   modalDescription: {
     fontSize: 15,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
@@ -453,14 +456,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
     padding: 16,
     borderRadius: 14,
     marginBottom: 12,
   },
   modalPriceLabel: {
     fontSize: 15,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   modalPriceBadge: {
     flexDirection: 'row',
@@ -470,7 +473,7 @@ const styles = StyleSheet.create({
   modalPriceValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#6366F1',
+    color: colors.accent.primary,
   },
   modalBalanceRow: {
     flexDirection: 'row',
@@ -481,17 +484,17 @@ const styles = StyleSheet.create({
   },
   modalBalanceLabel: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   modalBalanceValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F59E0B20',
+    backgroundColor: 'rgba(255, 181, 71, 0.15)',
     padding: 12,
     borderRadius: 10,
     marginBottom: 16,
@@ -500,24 +503,26 @@ const styles = StyleSheet.create({
   warningText: {
     flex: 1,
     fontSize: 13,
-    color: '#FCD34D',
+    color: colors.status.warning,
   },
   redeemButton: {
     flexDirection: 'row',
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingVertical: 16,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
+    ...shadows.glow,
   },
   redeemButtonDisabled: {
-    backgroundColor: '#374151',
+    backgroundColor: colors.border.primary,
+    shadowColor: 'transparent',
   },
   redeemButtonText: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#FFF',
+    color: colors.background.primary,
   },
   successOverlay: {
     flex: 1,
@@ -527,64 +532,68 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   successContent: {
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderRadius: 24,
     padding: 24,
     width: '100%',
     maxWidth: 340,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.primary,
   },
   successIcon: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#10B98120',
+    backgroundColor: colors.accent.soft,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    ...shadows.soft,
   },
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 15,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginBottom: 12,
   },
   codeBox: {
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#10B981',
+    borderColor: colors.accent.primary,
     borderStyle: 'dashed',
     marginBottom: 12,
   },
   codeText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#10B981',
+    color: colors.accent.primary,
     letterSpacing: 1,
   },
   codeHint: {
     fontSize: 13,
-    color: '#6B7280',
+    color: colors.text.tertiary,
     textAlign: 'center',
     marginBottom: 20,
   },
   successButton: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingHorizontal: 48,
     paddingVertical: 14,
     borderRadius: 12,
+    ...shadows.glow,
   },
   successButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFF',
+    color: colors.background.primary,
   },
 });

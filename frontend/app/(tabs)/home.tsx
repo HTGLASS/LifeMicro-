@@ -18,6 +18,7 @@ import TaskCard from '../../src/components/TaskCard';
 import AdBanner from '../../src/components/AdBanner';
 import CelebrationModal from '../../src/components/CelebrationModal';
 import RewardedAdButton from '../../src/components/RewardedAdButton';
+import { colors, shadows } from '../../src/constants/theme';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -123,7 +124,7 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>Your daily micro-wins await</Text>
         </View>
         <View style={styles.streakBadge}>
-          <Ionicons name="flame" size={18} color="#F59E0B" />
+          <Ionicons name="flame" size={18} color={colors.status.warning} />
           <Text style={styles.streakText}>{user?.streak_count || 0}</Text>
         </View>
       </View>
@@ -135,7 +136,7 @@ export default function HomeScreen() {
           <Text style={styles.balanceValue}>{wallet?.balance || 0}</Text>
         </View>
         <View style={styles.balanceRight}>
-          <Ionicons name="trending-up" size={20} color="#10B981" />
+          <Ionicons name="trending-up" size={20} color={colors.accent.primary} />
           <Text style={styles.earnedText}>+{wallet?.total_earned || 0} earned</Text>
         </View>
       </View>
@@ -147,7 +148,7 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#6366F1"
+            tintColor={colors.accent.primary}
           />
         }
       >
@@ -159,7 +160,7 @@ export default function HomeScreen() {
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#6366F1" />
+            <ActivityIndicator size="large" color={colors.accent.primary} />
           </View>
         ) : pendingTasks.length > 0 ? (
           <>
@@ -177,7 +178,9 @@ export default function HomeScreen() {
           </>
         ) : (
           <View style={styles.emptyState}>
-            <Ionicons name="sparkles" size={48} color="#6366F1" />
+            <View style={styles.emptyIconWrapper}>
+              <Ionicons name="sparkles" size={48} color={colors.accent.primary} />
+            </View>
             <Text style={styles.emptyTitle}>Ready for a challenge?</Text>
             <Text style={styles.emptyText}>
               Get personalized micro-tasks based on how you're feeling right now.
@@ -188,10 +191,10 @@ export default function HomeScreen() {
               disabled={isGenerating}
             >
               {isGenerating ? (
-                <ActivityIndicator color="#FFF" />
+                <ActivityIndicator color={colors.background.primary} />
               ) : (
                 <>
-                  <Ionicons name="flash" size={20} color="#FFF" />
+                  <Ionicons name="flash" size={20} color={colors.background.primary} />
                   <Text style={styles.generateButtonText}>Get My Tasks</Text>
                 </>
               )}
@@ -284,7 +287,7 @@ function getGreeting() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
   },
   header: {
     flexDirection: 'row',
@@ -297,17 +300,17 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   subtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginTop: 2,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F59E0B20',
+    backgroundColor: 'rgba(255, 181, 71, 0.15)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -316,30 +319,30 @@ const styles = StyleSheet.create({
   streakText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#F59E0B',
+    color: colors.status.warning,
   },
   balanceCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     marginHorizontal: 16,
     marginVertical: 12,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: colors.border.primary,
   },
   balanceLeft: {},
   balanceLabel: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     marginBottom: 4,
   },
   balanceValue: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   balanceRight: {
     flexDirection: 'row',
@@ -348,7 +351,7 @@ const styles = StyleSheet.create({
   },
   earnedText: {
     fontSize: 14,
-    color: '#10B981',
+    color: colors.accent.primary,
     fontWeight: '600',
   },
   content: {
@@ -365,11 +368,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F9FAFB',
+    color: colors.text.primary,
   },
   taskCount: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
   },
   loadingContainer: {
     paddingVertical: 48,
@@ -380,16 +383,25 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
     paddingHorizontal: 32,
   },
+  emptyIconWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: colors.accent.soft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    ...shadows.soft,
+  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#F9FAFB',
-    marginTop: 16,
+    color: colors.text.primary,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 15,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
@@ -397,24 +409,25 @@ const styles = StyleSheet.create({
   generateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 14,
     gap: 8,
+    ...shadows.glow,
   },
   generateButtonText: {
-    color: '#FFF',
+    color: colors.background.primary,
     fontSize: 16,
     fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.background.secondary,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -423,7 +436,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#F9FAFB',
+    color: colors.text.primary,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -432,7 +445,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   optionButton: {
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background.primary,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -440,16 +453,16 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   optionSelected: {
-    borderColor: '#6366F1',
-    backgroundColor: '#6366F115',
+    borderColor: colors.accent.primary,
+    backgroundColor: colors.accent.soft,
   },
   optionText: {
     fontSize: 16,
-    color: '#F9FAFB',
+    color: colors.text.primary,
     textAlign: 'center',
   },
   optionTextSelected: {
-    color: '#6366F1',
+    color: colors.accent.primary,
     fontWeight: '600',
   },
   modalActions: {
@@ -463,22 +476,22 @@ const styles = StyleSheet.create({
   },
   skipModalText: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: colors.text.secondary,
     fontWeight: '600',
   },
   continueButton: {
     flex: 2,
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.accent.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   buttonDisabled: {
-    backgroundColor: '#374151',
+    backgroundColor: colors.border.primary,
   },
   continueText: {
     fontSize: 16,
-    color: '#FFF',
+    color: colors.background.primary,
     fontWeight: '700',
   },
 });
