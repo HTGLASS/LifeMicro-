@@ -640,10 +640,21 @@ async def get_user_redemptions(user_id: str):
 
 # ---------- PUSH NOTIFICATION ROUTES ----------
 
+import httpx
+
+# Firebase Server Key for sending notifications
+FIREBASE_SERVER_KEY = os.environ.get('FIREBASE_SERVER_KEY', '')
+
 class PushTokenRegister(BaseModel):
     user_id: str
     fcm_token: str
     platform: str  # "ios" or "android"
+
+class SendNotificationRequest(BaseModel):
+    user_id: str
+    title: str
+    body: str
+    data: Optional[Dict[str, str]] = None
 
 @api_router.post("/register-push-token")
 async def register_push_token(token_data: PushTokenRegister):
@@ -677,6 +688,80 @@ async def get_push_token(user_id: str):
     if not token_doc:
         raise HTTPException(status_code=404, detail="No push token found for user")
     return serialize_doc(token_doc)
+
+@api_router.post("/send-notification")
+async def send_notification(notification: SendNotificationRequest):
+    """Send a push notification to a specific user"""
+    # Get user's FCM token
+    token_doc = await db.push_tokens.find_one({"user_id": notification.user_id})
+    if not token_doc:
+        raise HTTPException(status_code=404, detail="No push token found for user")
+    
+    fcm_token = token_doc.get("fcm_token")
+    if not fcm_token:
+        raise HTTPException(status_code=400, detail="Invalid FCM token")
+    
+    if not FIREBASE_SERVER_KEY:
+        raise HTTPException(status_code=500, detail="Firebase server key not configured")
+    
+    # Send notification via FCM HTTP v1 API
+    fcm_url = "https://fcm.googleapis.com/fcm/send"
+    
+    payload = {
+        "to": fcm_token,
+        "notification": {
+            "title": notification.title,
+            "body": notification.body,
+            "sound": "default"
+        },
+        "data": notification.data or {}
+    }
+    
+    headers = {
+        "Authorization": f"key={FIREBASE_SERVER_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(fcm_url, json=payload, headers=headers)
+            response_data = response.json()
+            
+            if response.status_code == 200 and response_data.get("success", 0) > 0:
+                logger.info(f"Notification sent to user {notification.user_id}")
+                return {"success": True, "message": "Notification sent successfully"}
+            else:
+                logger.error(f"FCM error: {response_data}")
+                return {"success": False, "error": response_data}
+    except Exception as e:
+        logger.error(f"Error sending notification: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send notification: {str(e)}")
+
+@api_router.post("/send-daily-reminder")
+async def send_daily_reminder(user_id: str):
+    """Send a daily reminder notification to complete tasks"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    streak = user.get("streak_count", 0)
+    
+    # Personalize message based on streak
+    if streak > 0:
+        title = f"🔥 Keep your {streak}-day streak alive!"
+        body = "Your micro-wins are waiting. Just 5 minutes to stay on track!"
+    else:
+        title = "✨ Time for your daily micro-wins!"
+        body = "Small actions, big results. Let's make today count!"
+    
+    notification = SendNotificationRequest(
+        user_id=user_id,
+        title=title,
+        body=body,
+        data={"type": "daily_reminder", "streak": str(streak)}
+    )
+    
+    return await send_notification(notification)
 
 # ---------- STATS ROUTES ----------
 
