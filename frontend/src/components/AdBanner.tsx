@@ -22,7 +22,7 @@ interface AdBannerProps {
 // Ad Unit IDs
 const AD_UNIT_IDS = {
   ios: 'ca-app-pub-3008579178451093/4363395450',
-  android: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX', // Add your Android ad unit ID here
+  android: 'ca-app-pub-3008579178451093/6088016026',
 };
 
 export default function AdBanner({ type = 'small' }: AdBannerProps) {
