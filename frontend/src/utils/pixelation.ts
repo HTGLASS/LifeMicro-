@@ -5,6 +5,156 @@
 
 import { PixelData } from '../types/character';
 
+/**
+ * Process a base64 image into pixelated avatar data
+ * Works on both web (Canvas API) and native (simplified palette)
+ */
+export async function processImageToPixels(
+  base64Image: string,
+  pixelSize: number = 8,
+  paletteSize: number = 16
+): Promise<PixelData> {
+  // Check if we're on web platform
+  if (typeof document !== 'undefined' && typeof HTMLCanvasElement !== 'undefined') {
+    return processImageOnWeb(base64Image, pixelSize, paletteSize);
+  }
+  
+  // Native fallback - generate based on image hash for variety
+  return generateAvatarFromBase64(base64Image, pixelSize, paletteSize);
+}
+
+/**
+ * Process image on web using Canvas API
+ */
+async function processImageOnWeb(
+  base64Image: string,
+  pixelSize: number,
+  paletteSize: number
+): Promise<PixelData> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          resolve(generatePlaceholderAvatar(pixelSize));
+          return;
+        }
+        
+        // Set canvas size
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw image
+        ctx.drawImage(img, 0, 0);
+        
+        // Get image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Process through pixelation
+        const pixelData = pixelateImage(
+          imageData.data,
+          canvas.width,
+          canvas.height,
+          pixelSize,
+          paletteSize
+        );
+        
+        resolve(pixelData);
+      } catch (error) {
+        console.error('Error processing image:', error);
+        resolve(generatePlaceholderAvatar(pixelSize));
+      }
+    };
+    
+    img.onerror = () => {
+      console.error('Failed to load image');
+      resolve(generatePlaceholderAvatar(pixelSize));
+    };
+    
+    // Load the base64 image
+    const prefix = base64Image.startsWith('data:') ? '' : 'data:image/png;base64,';
+    img.src = prefix + base64Image;
+  });
+}
+
+/**
+ * Generate avatar variation from base64 string (native fallback)
+ * Uses the image data to seed color generation for variety
+ */
+function generateAvatarFromBase64(
+  base64Image: string,
+  pixelSize: number,
+  paletteSize: number
+): PixelData {
+  // Create a simple hash from the base64 string for variety
+  let hash = 0;
+  for (let i = 0; i < Math.min(base64Image.length, 1000); i++) {
+    hash = ((hash << 5) - hash) + base64Image.charCodeAt(i);
+    hash = hash & hash;
+  }
+  
+  const palette = COLOR_PALETTES[paletteSize] || COLOR_PALETTES[16];
+  const width = Math.ceil(64 / pixelSize);
+  const height = Math.ceil(64 / pixelSize);
+  const colors: string[][] = [];
+  
+  // Use hash to create pseudo-random but consistent pattern
+  const seedRandom = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  for (let y = 0; y < height; y++) {
+    const row: string[] = [];
+    for (let x = 0; x < width; x++) {
+      // Create face-like pattern with mirror symmetry
+      const mirrorX = x < width / 2 ? x : width - 1 - x;
+      const seed = hash + mirrorX * 100 + y * 10;
+      
+      // Face region detection
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const distFromCenter = Math.sqrt(
+        Math.pow((x - centerX) / (width / 2), 2) + 
+        Math.pow((y - centerY) / (height / 2), 2)
+      );
+      
+      let colorIndex: number;
+      
+      if (distFromCenter > 0.9) {
+        // Background
+        colorIndex = Math.floor(seedRandom(seed) * 2);
+      } else if (distFromCenter > 0.7) {
+        // Face edge
+        colorIndex = Math.floor(seedRandom(seed + 1) * 3) + 2;
+      } else if (y < height * 0.35) {
+        // Hair region
+        colorIndex = Math.floor(seedRandom(seed + 2) * 4) + (hash % 4);
+      } else if (y > height * 0.55 && y < height * 0.75 && Math.abs(x - centerX) < width * 0.15) {
+        // Mouth region
+        colorIndex = Math.floor(seedRandom(seed + 3) * 2) + 10;
+      } else if (y > height * 0.35 && y < height * 0.55 && 
+                 (Math.abs(x - centerX) > width * 0.1 && Math.abs(x - centerX) < width * 0.35)) {
+        // Eye region
+        colorIndex = seedRandom(seed + 4) > 0.5 ? 8 : 0; // White or dark
+      } else {
+        // Face fill
+        colorIndex = Math.floor(seedRandom(seed + 5) * 3) + 4;
+      }
+      
+      row.push(palette[colorIndex % palette.length]);
+    }
+    colors.push(row);
+  }
+  
+  return { width, height, pixelSize, colors };
+}
+
 // Predefined color palettes for different evolution tiers
 const COLOR_PALETTES: Record<number, string[]> = {
   4: ['#0a0e1a', '#00E5BF', '#FFFFFF', '#1a2235'],

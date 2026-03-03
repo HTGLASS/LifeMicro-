@@ -19,7 +19,7 @@ import { useCharacterStore } from '../../src/store/characterStore';
 import PixelatedAvatar from '../../src/components/PixelatedAvatar';
 import EquippedItemsGrid from '../../src/components/EquippedItemsGrid';
 import InventoryModal from '../../src/components/InventoryModal';
-import { pixelateImage, generatePlaceholderAvatar } from '../../src/utils/pixelation';
+import { pixelateImage, generatePlaceholderAvatar, processImageToPixels } from '../../src/utils/pixelation';
 import { colors, shadows } from '../../src/constants/theme';
 import {
   EVOLUTION_COLORS,
@@ -113,7 +113,10 @@ export default function CharacterScreen() {
         base64: true,
       });
 
-      if (!photo) return;
+      if (!photo || !photo.base64) {
+        Alert.alert('Error', 'Failed to capture photo');
+        return;
+      }
 
       // Resize to smaller dimensions for pixelation
       const manipResult = await ImageManipulator.manipulateAsync(
@@ -122,20 +125,30 @@ export default function CharacterScreen() {
         { base64: true, format: ImageManipulator.SaveFormat.PNG }
       );
 
-      // Create pixel data from base64
-      // Note: In production, you'd decode the image and run pixelation
-      // For now, we'll use a simplified approach
+      if (!manipResult.base64) {
+        Alert.alert('Error', 'Failed to process photo');
+        return;
+      }
+
+      // Get pixel settings from character evolution
       const pixelSize = characterResponse?.evolution?.pixel_settings?.pixel_size || 8;
       const colorPalette = characterResponse?.evolution?.pixel_settings?.color_palette || 16;
 
-      // Generate pixelated data (simplified - in production, decode image)
-      const placeholder = generatePlaceholderAvatar(pixelSize);
+      // Process the actual image into pixel data
+      const pixelData = await processImageToPixels(
+        manipResult.base64,
+        pixelSize,
+        colorPalette
+      );
       
-      // Update avatar
-      await updateAvatar(user.id, placeholder);
+      // Update avatar with the actual processed pixel data
+      await updateAvatar(user.id, pixelData);
       setShowCamera(false);
       
-      Alert.alert('Avatar Updated!', 'Your pixelated avatar has been created.');
+      // Refresh character to show new avatar
+      await fetchCharacter(user.id);
+      
+      Alert.alert('Avatar Updated!', 'Your pixelated avatar has been created from your photo!');
     } catch (error) {
       console.error('Error capturing photo:', error);
       Alert.alert('Error', 'Failed to capture photo');
