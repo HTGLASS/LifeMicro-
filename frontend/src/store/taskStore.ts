@@ -1,24 +1,36 @@
 import { create } from 'zustand';
 import { MicroTask, ContextQuestion } from '../types';
+import { TaskStartResponse, TaskCompleteResponse, Verification } from '../types/character';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+interface ActiveTask {
+  taskId: string;
+  startedAt: string;
+  verification: Verification | null;
+  minCompletionTime: number;
+}
 
 interface TaskState {
   tasks: MicroTask[];
   contextQuestion: ContextQuestion | null;
+  activeTask: ActiveTask | null;
   isLoading: boolean;
   isGenerating: boolean;
   error: string | null;
   fetchTasks: (userId: string) => Promise<void>;
   fetchContextQuestion: (userId: string) => Promise<void>;
   generateTasks: (userId: string, contextAnswer?: { question: string; answer: string }) => Promise<void>;
-  completeTask: (taskId: string) => Promise<{ tokens_earned: number; streak_bonus: number; new_balance: number } | null>;
+  startTask: (taskId: string) => Promise<TaskStartResponse | null>;
+  completeTask: (taskId: string, verificationResponse?: any, reflectionText?: string) => Promise<TaskCompleteResponse | null>;
   skipTask: (taskId: string) => Promise<void>;
+  clearActiveTask: () => void;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: [],
   contextQuestion: null,
+  activeTask: null,
   isLoading: false,
   isGenerating: false,
   error: null,
@@ -71,25 +83,70 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
-  completeTask: async (taskId: string) => {
+  startTask: async (taskId: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/tasks/complete`, {
+      const response = await fetch(`${API_URL}/api/tasks/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: taskId }),
       });
+
+      if (!response.ok) throw new Error('Failed to start task');
+
+      const result: TaskStartResponse = await response.json();
+
+      // Store active task info for anti-cheat tracking
+      set({
+        activeTask: {
+          taskId,
+          startedAt: result.started_at,
+          verification: result.verification,
+          minCompletionTime: result.min_completion_time,
+        },
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Error starting task:', error);
+      return null;
+    }
+  },
+
+  completeTask: async (taskId: string, verificationResponse?: any, reflectionText?: string) => {
+    try {
+      const body: any = { task_id: taskId };
+
+      // Add verification response if provided
+      if (verificationResponse) {
+        body.verification_response = verificationResponse;
+      }
+
+      // Add reflection text if provided
+      if (reflectionText) {
+        body.reflection_text = reflectionText;
+      }
+
+      const response = await fetch(`${API_URL}/api/tasks/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       
-      if (!response.ok) throw new Error('Failed to complete task');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to complete task');
+      }
       
-      const result = await response.json();
+      const result: TaskCompleteResponse = await response.json();
       
-      // Remove task from list
+      // Remove task from list and clear active task
       set(state => ({
-        tasks: state.tasks.filter(t => t.id !== taskId)
+        tasks: state.tasks.filter(t => t.id !== taskId),
+        activeTask: null,
       }));
       
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error completing task:', error);
       return null;
     }
@@ -105,12 +162,17 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       
       if (!response.ok) throw new Error('Failed to skip task');
       
-      // Remove task from list
+      // Remove task from list and clear active task
       set(state => ({
-        tasks: state.tasks.filter(t => t.id !== taskId)
+        tasks: state.tasks.filter(t => t.id !== taskId),
+        activeTask: null,
       }));
     } catch (error) {
       console.error('Error skipping task:', error);
     }
+  },
+
+  clearActiveTask: () => {
+    set({ activeTask: null });
   },
 }));

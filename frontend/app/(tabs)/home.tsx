@@ -18,17 +18,20 @@ import TaskCard from '../../src/components/TaskCard';
 import AdBanner from '../../src/components/AdBanner';
 import CelebrationModal from '../../src/components/CelebrationModal';
 import RewardedAdButton from '../../src/components/RewardedAdButton';
+import VerificationModal from '../../src/components/VerificationModal';
 import { colors, shadows } from '../../src/constants/theme';
+import { TaskCompleteResponse } from '../../src/types/character';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function HomeScreen() {
   const { user } = useUserStore();
-  const { tasks, contextQuestion, isLoading, isGenerating, fetchTasks, fetchContextQuestion, generateTasks, completeTask, skipTask } = useTaskStore();
+  const { tasks, contextQuestion, activeTask, isLoading, isGenerating, fetchTasks, fetchContextQuestion, generateTasks, startTask, completeTask, skipTask, clearActiveTask } = useTaskStore();
   const { wallet, fetchWallet } = useWalletStore();
 
   const [refreshing, setRefreshing] = useState(false);
   const [showContextModal, setShowContextModal] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [processingTaskId, setProcessingTaskId] = useState<string | null>(null);
   const [celebrationData, setCelebrationData] = useState<{
@@ -36,6 +39,8 @@ export default function HomeScreen() {
     tokensEarned: number;
     streakBonus: number;
     newBalance: number;
+    trustChange?: number;
+    validationStatus?: string;
   }>({ visible: false, tokensEarned: 0, streakBonus: 0, newBalance: 0 });
 
   useEffect(() => {
@@ -92,7 +97,36 @@ export default function HomeScreen() {
 
   const handleCompleteTask = async (taskId: string) => {
     setProcessingTaskId(taskId);
-    const result = await completeTask(taskId);
+    
+    // Step 1: Start the task (for anti-cheat time tracking)
+    const startResult = await startTask(taskId);
+    
+    if (startResult) {
+      // Show verification modal with timer
+      setShowVerificationModal(true);
+    } else {
+      // Fallback: If start fails, try direct completion (legacy behavior)
+      const result = await completeTask(taskId);
+      setProcessingTaskId(null);
+
+      if (result) {
+        setCelebrationData({
+          visible: true,
+          tokensEarned: result.tokens_earned,
+          streakBonus: result.streak_bonus,
+          newBalance: result.new_balance,
+          trustChange: result.trust_change,
+          validationStatus: result.validation_status,
+        });
+      }
+    }
+  };
+
+  const handleVerificationSubmit = async (verificationResponse: any, reflectionText?: string) => {
+    if (!activeTask) return;
+    
+    const result = await completeTask(activeTask.taskId, verificationResponse, reflectionText);
+    setShowVerificationModal(false);
     setProcessingTaskId(null);
 
     if (result) {
@@ -101,8 +135,36 @@ export default function HomeScreen() {
         tokensEarned: result.tokens_earned,
         streakBonus: result.streak_bonus,
         newBalance: result.new_balance,
+        trustChange: result.trust_change,
+        validationStatus: result.validation_status,
       });
     }
+  };
+
+  const handleVerificationSkip = async () => {
+    if (!activeTask) return;
+    
+    // Complete without verification (may get reduced rewards)
+    const result = await completeTask(activeTask.taskId);
+    setShowVerificationModal(false);
+    setProcessingTaskId(null);
+
+    if (result) {
+      setCelebrationData({
+        visible: true,
+        tokensEarned: result.tokens_earned,
+        streakBonus: result.streak_bonus,
+        newBalance: result.new_balance,
+        trustChange: result.trust_change,
+        validationStatus: result.validation_status,
+      });
+    }
+  };
+
+  const handleVerificationCancel = () => {
+    setShowVerificationModal(false);
+    setProcessingTaskId(null);
+    clearActiveTask();
   };
 
   const handleSkipTask = async (taskId: string) => {
@@ -261,6 +323,17 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Verification Modal */}
+      <VerificationModal
+        visible={showVerificationModal}
+        verification={activeTask?.verification || null}
+        minCompletionTime={activeTask?.minCompletionTime || 0}
+        startedAt={activeTask?.startedAt || ''}
+        onSubmit={handleVerificationSubmit}
+        onSkip={handleVerificationSkip}
+        onCancel={handleVerificationCancel}
+      />
 
       {/* Celebration Modal */}
       <CelebrationModal

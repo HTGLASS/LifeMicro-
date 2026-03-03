@@ -388,7 +388,9 @@ async def create_or_get_user(user_create: UserCreate):
     """Create a new user or return existing user by device_id"""
     existing = await db.users.find_one({"device_id": user_create.device_id})
     if existing:
-        existing['id'] = str(existing.get('_id', existing.get('id')))
+        # Use the existing UUID 'id' field, not MongoDB's _id
+        if '_id' in existing:
+            del existing['_id']
         return User(**existing)
     
     user = User(device_id=user_create.device_id, name=user_create.name)

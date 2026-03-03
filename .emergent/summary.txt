@@ -1,185 +1,172 @@
 <analysis>
+**original_problem_statement**: The user wants to enhance the  mobile app by adding sophisticated new systems for player engagement and security. The initial goal was to build a cross-platform AI-powered life coach app, and now the user is layering on gamification and anti-cheat mechanics.
 
-**original_problem_statement**: The user wants to build a cross-platform mobile app called . It is an AI-powered life coach that provides users with small daily micro-wins.
+**PRODUCT REQUIREMENTS (New Features)**:
 
-**PRODUCT REQUIREMENTS**:
-- **Core Functionality**:
-    - User onboarding to set goals (Fitness, Focus, Business, etc.), productivity times, and time availability.
-    - AI-generated daily micro-tasks (1-5 small actions).
-    - Task tracking with Done and Skip buttons.
-- **Crypto Reward System**:
-    - A built-in cryptocurrency named  on the Polygon blockchain (EVM-compatible).
-    - A custodial wallet system managed by the backend.
-    - Users earn MICO for completing tasks and maintaining streaks.
-    - Tokens can be redeemed in a marketplace.
-- **Marketplace**:
-    - Users redeem MICO for goods (discounts, digital downloads, etc.).
-    - Redemption burns the tokens.
-- **Ad System**:
-    - Contextual ads using Google AdMob shown next to micro-actions.
-    - User wants to use real ads.
-- **AI System**:
-    - Initially requested to use the Emergent LLM Key for task generation.
-    - The user later pivoted to a hybrid model: use a large, pre-generated task library for free, offline-capable tasks, but retain the ability to use live AI (OpenAI or Gemini) when the user is online.
-- **Push Notifications**:
-    - Use Firebase Cloud Messaging.
-- **Health Integration**:
-    - Apple Health & Google Fit integration is deferred to a later phase.
+-   **PART 1: ANTI-CHEAT SYSTEM**
+    -   **Time-Based Validation**: Prevent rapid task completion; log start/end times.
+    -   **Sensor-Based Validation**: (Future) Integrate HealthKit/Google Fit for movement tasks.
+    -   **Random Verification Prompts**: After completing a task (15-25% chance), prompt the user for a short text reflection, a 10-second voice note, or a contextual question.
+    -   **Dynamic Verification Strictness**: The verification method's strictness (e.g., simple text vs. voice note) should be based on the user's Trust Score. Lower scores lead to stricter verification.
+    -   **Trust Score System**: A dynamic score (0-100) that increases with legitimate behavior (streaks, verified tasks) and decreases with suspicious activity (rapid completions, skipping verifications). The score affects reward multipliers and access to store items.
+
+-   **PART 2: TAMAGOTCHI-STYLE CHARACTER SYSTEM**
+    -   **Core Concept**: Users get a single character that evolves based on their real-world effort.
+    -   **Camera-Based Avatar**: The character's visual is a **pixelated version of a photo the user takes with their phone's camera**. This acts as a soft ID verification and personalization feature.
+    -   **Character Stats**: The character has stats for Energy, Integrity, and Momentum, tied directly to task completion, Trust Score, and streaks.
+    -   **Deterioration Mechanic**: The character's visual appearance degrades if the user misses daily tasks, and can even regress in evolution tiers after 7 days of inactivity.
+    -   **Evolution System**: Characters evolve through tiers based on the number of *verified* tasks completed.
+    -   **Item System**: Users can spend points in the store to buy cosmetic items (skins, accessories) for their character. Access to high-rarity items is gated by Trust Score, streaks, and task counts.
+    -   **Store Security**: Implement purchase cooldowns and delayed point settlement for users with low Trust Scores.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A nearly feature-complete MVP of the LifeMicro app.
-- **Backend (FastAPI)**: Fully functional API with endpoints for user onboarding, profile management, task completion, streak tracking, a marketplace with seeded items, and token transactions (tracked in the database).
-- **Task Generation**: The system has been pivoted from a live AI-only model. It now uses a static  file in the backend, containing 175 pre-generated tasks across 7 categories. This makes the core task functionality free to operate.
-- **Frontend (Expo/React Native)**: A multi-screen mobile app built with Tamagui and Expo Router. It includes a welcome screen, onboarding flow, and a tabbed interface for Home (tasks), Wallet, and Shop (marketplace).
-- **Ads**: Google AdMob is fully configured for both iOS and Android, including Banner ads on the task screen and a Rewarded Ad button for bonus tokens. All of the user's provided App IDs and Ad Unit IDs have been integrated.
-- **Blockchain**: A Solidity-based ERC-20 token contract () has been created and successfully deployed to the Polygon Amoy testnet. The user's wallet address and contract address () are configured in the backend and frontend.
+The application is a functional MVP with a new, extensive feature set partially implemented.
+-   **Backend (FastAPI)**: Has endpoints for users, tasks, a marketplace, and wallet. It now includes a significant number of new, partially-implemented endpoints for the anti-cheat and character systems. The core  endpoint has been replaced with a new version that includes anti-cheat logic.
+-   **Frontend (Expo/React Native)**: The app has a full onboarding flow and a tabbed interface (Home, Wallet, Shop). A major UI overhaul was completed, giving the app a dark navy and teal theme to match the user's provided app icon. Skeletons for the new Character tab and its components have been created.
+-   **Task Generation**: A hybrid system is in place. The backend can serve tasks from a local  file (now containing 521 tasks) or, if online, generate them using an LLM via the Emergent LLM Key.
+-   **Integrations**: Google AdMob, Firebase Push Notifications (iOS & Android configured), and  are installed.
 
 **Last working item**:
--   **Last item agent was working**: The agent had just acknowledged the user's refined request to create a hybrid task generation system. The goal is to use the live AI (OpenAI/Gemini) when the user is online and fall back to the pre-generated  library when the user is offline. The agent also agreed to expand the task library to a couple hundred tasks per category.
--   **Status**: NOT STARTED
+-   **Last item agent was working**: Implementing the frontend for the new Tamagotchi-style Character system. The agent had just finished creating the initial files for the camera-based avatar feature, including:
+    -   A new Character screen: 
+    -   A Zustand store for character state: 
+    -   A pixelation utility: 
+    -   A  component: 
+    -   Adding the Character tab to the tab layout: 
+-   **Status**: IN PROGRESS
 -   **Agent Testing Done**: N
--   **Which testing method agent to use?**: backend testing agent
+-   **Which testing method agent to use?**: both. The backend has numerous new, untested API endpoints. The frontend has a complex new feature involving camera access, image processing, and state management that needs to be validated.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1**: The task generation logic is incomplete and does not match the user's latest request for a hybrid model. (Priority: P0)
--   **Issue 2**: The pre-generated task library () is too small. (Priority: P1)
+-   **Issue 1**: The core task completion flow is likely broken due to the partially implemented anti-cheat system. (Priority: P0)
 
 **Issues Detail**:
--   **Issue 1: Implement Hybrid Task Generation**
-    -   **Attempted fixes**: The agent successfully implemented the first part of the user's idea (using a local JSON file), but did not implement the hybrid online/offline logic. The current implementation *only* uses the local .
+-   **Issue 1: Broken Task Completion Flow**
+    -   **Attempted fixes**: The agent replaced the original  endpoint in  with a new version that incorporates anti-cheat logic. However, this new logic and its dependencies (Trust Score calculation, verification checks) are not fully implemented or tested.
     -   **Next debug checklist**:
-        1.  Modify the  endpoint in .
-        2.  Add a parameter to the request, or logic in the backend, to determine the mode (e.g.,  vs ). The frontend would be responsible for detecting network status.
-        3.  If in online mode and the Universal Key has a balance, call the OpenAI/Gemini API.
-        4.  If in offline mode or the AI call fails (e.g., no balance), use the existing logic to pull tasks from .
-    -   **Why fix this issue and what will be achieved with the fix?**: This is the user's highest priority feature. It will create a robust app that offers deep personalization when possible (online AI) and remains fully functional and free to operate when not (offline library).
-    -   **Status**: NOT STARTED
-    -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: backend
-    -   **Blocked on other issue**: None.
-
--   **Issue 2: Expand Task Library**
-    -   **Attempted fixes**: The agent created the initial library with 25 tasks per category (175 total).
-    -   **Next debug checklist**:
-        1.  Create a temporary script or use an internal thought process to call the OpenAI/Gemini API repeatedly.
-        2.  Generate at least 200 tasks for each of the 7 categories (Fitness, Focus, Business, Relationships, Spiritual, Creativity, Health).
-        3.  Ensure tasks are varied and high-quality.
-        4.  Overwrite the existing  with the new, expanded library.
-    -   **Why fix this issue and what will be achieved with the fix?**: To fulfill the user's request and ensure long-term user engagement by providing a wide variety of tasks, reducing repetition.
+        1.  Thoroughly review the new  endpoint in .
+        2.  Run a test using  or a test script to call  and observe the failure.
+        3.  Implement any missing logic for Trust Score updates and verification triggers within the endpoint.
+        4.  Ensure all new database models (, ) are correctly created and accessed.
+        5.  Test the endpoint again to confirm a task can be successfully completed.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is the single most critical function of the app. Without the ability to complete tasks, no other feature (earning tokens, streaks, character progression) can work.
     -   **Status**: NOT STARTED
     -   **Is recurring issue?**: N
     -   **Should Test frontend/backend/both after fix?**: backend
     -   **Blocked on other issue**: None.
 
 **In progress Task List**:
-None.
+-   **Task 1: Complete Anti-Cheat & Character System Implementation (P0)**
+    -   **Where to resume**: The frontend component files for the Character screen have been created. The immediate next steps are:
+        1.  **Frontend**: Flesh out  to include the  view, a capture button, and logic to call the pixelation utility and display the result in the  component. Connect the screen to the Zustand store and the new backend endpoints.
+        2.  **Backend**: Test and complete all new endpoints in  related to characters, trust scores, and verifications.
+        3.  **Frontend**: Build the UI for the random verification prompts (text input, etc.).
+    -   **What will be achieved with this?**: This will deliver the user's primary feature request, adding deep gamification and security layers to the app.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Blocked on something**: Issue 1 (Broken Task Completion Flow).
 
 **Upcoming and Future Tasks**
-- **Upcoming Tasks**:
-  - **P0: Firebase Push Notifications Setup**: The user has confirmed they want to set this up. The agent is blocked, waiting for the user to provide three pieces of information from their Firebase account:  (iOS),  (Android), and the  from the Cloud Messaging tab.
-- **Future Tasks**:
-  - **P1: Deploy MICO Token to Polygon Mainnet**: The current contract is on the Amoy testnet. The agent should guide the user through deploying to the mainnet when they are ready to launch with real-world tokenomics.
-  - **P2: App Store Asset Creation**: The agent offered to help create placeholder app icons, screenshots, and descriptions needed for submission to the Apple App Store and Google Play Store.
-  - **P3: Health Integration**: Integrate with Apple Health and Google Fit as originally requested but deferred by the user.
+-   **Upcoming Tasks**:
+    -   **P1: Sensor-Based Validation**: Integrate Apple HealthKit and Google Fit to validate physical tasks as part of the anti-cheat system.
+-   **Future Tasks**:
+    -   **P2: Deploy MICO Token to Polygon Mainnet**: Guide the user through deploying the smart contract to the mainnet for launch.
+    -   **P3: App Store Asset Creation**: Help create app icons, screenshots, and descriptions for store submission.
 
 **Completed work in this session**
-- **Backend API (DONE)**: A complete FastAPI backend was created in  to handle users, tasks, marketplace, wallet, streaks, and blockchain info.
-- **Initial Task Generation (DONE)**: An AI-powered task generation system was built and later pivoted to a free, library-based system using .
-- **Frontend Scaffolding (DONE)**: The entire Expo app structure was built, including onboarding, tab navigation, and screens for Home, Wallet, and Shop using Tamagui.
-- **AdMob Integration (DONE)**: Configured iOS and Android banner and rewarded ads using the user's own AdMob IDs in  and .
-- **Blockchain Smart Contract (DONE)**: Created and deployed the MICO ERC-20 token on the Polygon Amoy testnet. The agent assisted the user with the entire process, including debugging faucet issues.
-- **MongoDB ObjectId Serialization Fix (DONE)**: Resolved a critical bug preventing API endpoints from returning data by correctly serializing MongoDB's .
-- **User Guides (DONE)**: Provided detailed, copy-pasteable guides for setting up Polygon, Firebase, and AdMob, and for building the app with EAS.
+-   **Firebase Push Notifications (DONE)**: Fully configured for iOS and Android, including frontend services and backend endpoints for registering tokens and sending test notifications. The user's server key is saved in .
+-   **Hybrid Task Generation System (DONE)**: The  endpoint in  now supports an online AI mode and an offline JSON-based mode.
+-   **Task Library Expansion (DONE)**: The  file was expanded to 521 tasks across 7 categories.
+-   **Complete UI/Theme Overhaul (DONE)**: The entire frontend was restyled with a dark navy blue and glowing teal theme to match the user's app icon.
+-   **Web Preview Compatibility (DONE)**: Fixed build issues related to the  package not supporting web by making the components (, ) conditionally load only on native platforms.
 
 **Earlier issues found/mentioned but not fixed**
-None. The agent has addressed all issues raised so far.
+-   **Web Preview Instability**: During the UI overhaul, the agent noted that the web preview was frequently unavailable or failed to bundle. The agent diagnosed this as a platform-level issue, not a code error, as native mobile builds via Expo Go should still work correctly. This may persist.
 
 **Known issue recurrence from previous fork**
-None.
+-   None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Frontend**: Expo (React Native), Tamagui (UI Kit), Expo Router (Navigation), Zustand (State Management)
-- **Backend**: FastAPI (Python), MongoDB (Database)
-- **Blockchain**: Solidity, Hardhat, Ethers.js, Polygon (Amoy Testnet)
-- **Integrations**: Google AdMob, Emergent LLM Key (for OpenAI/Gemini)
+-   **Frontend**: Expo (React Native), Tamagui, Expo Router, Zustand, **Expo Camera**, **React Native Firebase**
+-   **Backend**: FastAPI (Python), MongoDB
+-   **Blockchain**: Solidity, Hardhat, Ethers.js, Polygon (Amoy Testnet)
+-   **Integrations**: Google AdMob, **Firebase Cloud Messaging**, Emergent LLM Key
 
 **key DB schema**
--   **users**: 
--   **marketplace_items**: 
--   **transactions**: 
-
-**changes in tech stack**
-None. The stack has remained consistent with the initial plan.
+-   **users**:  (Updated)
+-   **characters**:  (New)
+-   **tasks**:  (Updated)
+-   **marketplace_items**:  (Updated)
+-   **transactions**: Unchanged.
 
 **All files of reference**
--   : Contains the entire backend logic, including the crucial  endpoint that needs modification.
--   : The new static database for tasks. This file needs to be expanded.
--   : The main screen where tasks and ads are displayed.
--   : Holds the configuration for Expo, including the AdMob App IDs.
--   : The source code for the deployed MICO token.
--   : Contains the saved MICO contract address and the placeholder for the Firebase server key.
+-   : **Critically important.** Heavily modified with new models, many new endpoints, and a replaced  function. This file is the heart of the new, unfinished system.
+-   : The new, empty screen where the camera and avatar functionality needs to be built.
+-   : The utility for creating the pixelated avatar effect.
+-   : The state management for the new character system.
+-   : Contains the new Firebase plugin configurations.
+-   All themed  files under  and .
 
 **Areas that need refactoring**:
-None. The code is modular and follows good practices for an MVP.
+-    has become extremely large. The agent initially planned to create separate  and  modules but instead put all the logic into . For long-term maintainability, this logic should be broken out into separate files/routers.
 
 **key api endpoints**
--   : Creates/updates a user profile.
--   : **(NEEDS UPDATE)** Generates tasks for a user.
--   : Marks a task as complete and awards tokens.
--   : Fetches user data.
--   : Fetches all marketplace items.
--   : Redeems an item from the marketplace.
--   : Provides contract info to the frontend.
+-   : **(CRITICAL - REPLACED & LIKELY BROKEN)** Validates task completion with anti-cheat logic.
+-   : Registers a device for push notifications.
+-   : (To be used) Uploads the user's camera photo for their avatar.
+-   : (To be used) Fetches the user's character data.
+-   : (To be used) Submits user input for a verification prompt.
+-   *(Plus many other new, unimplemented endpoints for the character and trust score systems)*
 
 **Critical Info for New Agent**
--   **Top Priority**: The user's most recent request is to implement a **hybrid task-generation model**. The current implementation is NOT hybrid; it only uses the static  file. You must update  to use live AI when online and the JSON file when offline.
--   **Second Priority**: The user wants the  library expanded to a couple hundred tasks per category. You will need to use an LLM to generate this content and update the file.
--   **Blocked on User**: The setup for Firebase Push Notifications is pending. You are waiting for the user to provide , , and their Firebase Server Key.
--   **Universal Key**: The user's AI functionality depends on their Universal Key balance. Remind the user that AI calls will fail if their balance is zero. The hybrid model mitigates this, but it's important context.
+-   **Top Priority is Fixing Core Loop**: The  API was replaced with an incomplete anti-cheat version. This has likely broken the app's most fundamental feature. You must fix this endpoint first before proceeding with any new development.
+-   **Massive Feature Implementation is In-Progress**: You are in the middle of building a very large and complex feature set (Anti-Cheat & Character System). The backend has many new, untested API endpoints, and the frontend has only skeleton files for the new UI. Refer to the user's detailed requests in the history (messages 185 and 192).
+-   **Camera-based Pixelated Avatar**: The user specifically requested that the character's avatar be generated by taking a photo with the device camera and pixelating it.  is installed, and skeleton files (, ) exist. This is a key part of the new feature.
+-   **Recap of Recent Work**: The agent just completed a full Firebase Push Notification setup and a major UI overhaul to a dark theme. These features should be functional.
 
 **documents created in this job**
-- : Contains guides for Polygon, Firebase, and AdMob.
-- : The static database of micro-tasks.
-- : Configuration file for EAS builds.
-- , , : The complete smart contract project.
+-   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Latest)**: Likes the idea of a hybrid online/offline task system. Requests the task database be expanded to a couple hundred tasks per category. **(PENDING ACTION)**
-2.  **User**: Proposes using AI once to generate a large database to save money, improving user experience. (Agent implemented the DB part).
-3.  **User**: Asks about using Gemini for free task generation. (Agent clarified costs).
-4.  **User**: States they are traveling and will provide Firebase info later. **(PENDING USER)**
-5.  **User**: Asks for instructions on how to set up Firebase push notifications. (Agent provided guide).
-6.  **User**: Provides the working MICO contract address: . (Agent saved it).
-7.  **User**: Confirms the blockchain and coins are set up and wants to finalize the app for publishing. (Agent provided a checklist).
-8.  **User**: Reports the first contract address didn't work and was a personal address. (Agent diagnosed the issue).
-9.  **User**: Provides their MetaMask private key for deployment assistance. (Agent used it to deploy).
-10. **User**: Provides their MetaMask wallet address. (Agent confirmed it).
+1.  **User (LATEST)**: Refines the character system: use the phone camera for a pixelated avatar and make anti-cheat verification strictness dynamic based on Trust Score. Confirms readiness to proceed. **(ACTIONED, IN PROGRESS)**
+2.  **User**: Introduces a massive new feature request for a detailed Anti-Cheat system and a Tamagotchi-style Character progression system. Provides extensive design specifications. **(ACTIONED, IN PROGRESS)**
+3.  **User**: Agrees the expanded task library (521 tasks) is sufficient. Provides an app icon and requests the app's style be updated to match its dark, modern aesthetic. **(COMPLETED)**
+4.  **User**: Asks to proceed with the hybrid task system and expand the task library to 1,400 tasks. **(COMPLETED, but only 521 tasks generated)**
+5.  **User**: Provides the Firebase Server Key. **(COMPLETED)**
+6.  **User**: Asks for a summary of Firebase setup and what's next. **(COMPLETED)**
+7.  **User**: Provides the  file for Android. **(COMPLETED)**
+8.  **User**: Provides the iOS Firebase config details. **(COMPLETED)**
+9.  **User**: Provides the Apple Bundle ID. **(COMPLETED)**
 
 **Project Health Check:**
-- **Broken**: The AI generation part of the task system is effectively disabled. The logic in  needs to be updated to support the hybrid model.
-- **Mocked**: No mocked data. The app uses a real database and a static JSON file for tasks.
+-   **Broken**: The core task completion functionality () is highly likely to be non-operational due to being replaced by an incomplete anti-cheat version. The entire new character/anti-cheat system is in a partially built, non-functional state.
+-   **Mocked**: None.
 
 **3rd Party Integrations**
 -   **OpenAI GPT-4o / Google Gemini**: For AI task generation. Uses Emergent LLM Key.
--   **Google AdMob**: For in-app advertising. Requires User API Key (which has been provided and configured).
--   **Polygon**: For the MICO cryptocurrency. Requires user's own wallet and keys for deployment and management.
+-   **Google AdMob**: For in-app advertising. Requires User API Key (configured).
+-   **Polygon**: For the MICO cryptocurrency on Amoy testnet.
+-   **Firebase Cloud Messaging**: For push notifications. Requires User-provided keys (configured).
+-   **Expo Camera**: For the new character avatar feature.
 
 **Testing status**
--   **Testing agent used after significant changes**: NO. The agent performed manual  tests after major backend changes but did not use a formal testing agent after the pivot to the  library.
--   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Testing agent used after significant changes**: NO. The recent major changes (UI overhaul, massive backend refactor for anti-cheat) have not been tested by a testing agent.
+-   **Troubleshoot agent used after agent stuck in loop**: NO. The agent troubleshooted the web preview issue manually.
 -   **Test files created**: None.
--   **Known regressions**: None.
+-   **Known regressions**: The core  functionality is presumed to be regressed/broken.
 
 **Credentials to test flow:**
-No user credentials are required for testing. The app flow starts with onboarding a new user.
+No user credentials are required. The app flow starts with onboarding a new user.
 
 **What agent forgot to execute**
-The agent did not fully implement the user's latest request (Chat 213). It acknowledged the need for a **hybrid (online-AI/offline-DB) model** and a **larger task database** but only set the stage for this work. The current implementation is DB-only, and the database is small. This is the most critical pending task.
+-   The agent is in the middle of a very large task. The most significant miss is not testing the critical  endpoint after replacing it. This should have been the first action after modifying such a core piece of logic.
+-   The plan to break out anti-cheat and character logic into separate Python modules was abandoned in favor of putting everything in , leading to a very large and hard-to-maintain file.
 
 </analysis>
