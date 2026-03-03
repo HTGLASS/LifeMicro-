@@ -14,80 +14,340 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useUserStore } from '../../src/store/userStore';
 import { useWalletStore } from '../../src/store/walletStore';
-import { MarketplaceItem } from '../../src/types';
+import { useCharacterStore } from '../../src/store/characterStore';
 import AdBanner from '../../src/components/AdBanner';
 import { colors, shadows } from '../../src/constants/theme';
 
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+interface StoreItem {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  rarity: string;
+  trust_requirement: number;
+  streak_requirement: number;
+  verified_requirement: number;
+  base_price: number;
+  preview_url: string | null;
+  is_seasonal: boolean;
+  stock: number;
+}
+
+interface UserStats {
+  trust_score: number;
+  streak: number;
+  verified_task_count: number;
+}
+
 const CATEGORY_ICONS: Record<string, string> = {
-  food: 'cafe',
-  digital: 'cloud-download',
-  apps: 'apps',
-  fitness: 'fitness',
+  skin: 'color-palette',
+  accessory: 'glasses',
+  background: 'image',
+  particle_effect: 'sparkles',
+  companion: 'paw',
   all: 'grid',
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  skin: 'Skins',
+  accessory: 'Accessories',
+  background: 'Backgrounds',
+  particle_effect: 'Effects',
+  companion: 'Companions',
+  all: 'All Items',
+};
+
+const RARITY_COLORS: Record<string, string> = {
+  common: '#9CA3AF',
+  uncommon: '#10B981',
+  rare: '#3B82F6',
+  epic: '#8B5CF6',
+  legendary: '#F59E0B',
+};
+
+const RARITY_LABELS: Record<string, string> = {
+  common: 'Common',
+  uncommon: 'Uncommon',
+  rare: 'Rare',
+  epic: 'Epic',
+  legendary: 'Legendary',
 };
 
 export default function ShopScreen() {
   const { user } = useUserStore();
-  const { wallet, marketplaceItems, fetchWallet, fetchMarketplace, redeemItem } = useWalletStore();
+  const { wallet, fetchWallet } = useWalletStore();
+  const { character, inventory, fetchCharacter, fetchInventory } = useCharacterStore();
+  
+  const [storeItems, setStoreItems] = useState<StoreItem[]>([]);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedItem, setSelectedItem] = useState<MarketplaceItem | null>(null);
-  const [isRedeeming, setIsRedeeming] = useState(false);
-  const [successModal, setSuccessModal] = useState<{ visible: boolean; code: string }>({ visible: false, code: '' });
+  const [selectedItem, setSelectedItem] = useState<StoreItem | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [successModal, setSuccessModal] = useState<{ visible: boolean; itemName: string }>({ 
+    visible: false, 
+    itemName: '' 
+  });
+
+  const fetchStoreItems = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/character-store`);
+      if (response.ok) {
+        const data = await response.json();
+        setStoreItems(data.items || []);
+      }
+    } catch (error) {
+      console.error('Error fetching store items:', error);
+    }
+  };
+
+  const fetchUserStats = async () => {
+    if (!user?.id) return;
+    try {
+      const response = await fetch(`${API_URL}/api/trust-score/${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUserStats({
+          trust_score: data.trust_score,
+          streak: data.streak || 0,
+          verified_task_count: data.verified_task_count || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+    }
+  };
 
   useEffect(() => {
-    if (user?.id) {
-      fetchWallet(user.id);
-    }
-    fetchMarketplace();
+    const loadData = async () => {
+      setIsLoading(true);
+      await Promise.all([
+        fetchStoreItems(),
+        user?.id ? fetchWallet(user.id) : Promise.resolve(),
+        user?.id ? fetchUserStats() : Promise.resolve(),
+        user?.id ? fetchCharacter(user.id) : Promise.resolve(),
+        user?.id ? fetchInventory(user.id) : Promise.resolve(),
+      ]);
+      setIsLoading(false);
+    };
+    loadData();
   }, [user?.id]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchMarketplace(), user?.id ? fetchWallet(user.id) : Promise.resolve()]);
+    await Promise.all([
+      fetchStoreItems(),
+      user?.id ? fetchWallet(user.id) : Promise.resolve(),
+      user?.id ? fetchUserStats() : Promise.resolve(),
+      user?.id ? fetchInventory(user.id) : Promise.resolve(),
+    ]);
     setRefreshing(false);
   };
 
-  const categories = ['all', ...new Set(marketplaceItems.map(item => item.category))];
+  const categories = ['all', ...new Set(storeItems.map(item => item.category))];
 
   const filteredItems = selectedCategory === 'all'
-    ? marketplaceItems
-    : marketplaceItems.filter(item => item.category === selectedCategory);
+    ? storeItems
+    : storeItems.filter(item => item.category === selectedCategory);
 
-  const handleRedeem = async () => {
-    if (!user?.id || !selectedItem) return;
+  // Sort by rarity (legendary first) then by price
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    const rarityOrder = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
+    const aRarity = rarityOrder.indexOf(a.rarity);
+    const bRarity = rarityOrder.indexOf(b.rarity);
+    if (aRarity !== bRarity) return aRarity - bRarity;
+    return a.base_price - b.base_price;
+  });
 
+  const canPurchaseItem = (item: StoreItem) => {
+    if (!userStats) return { canBuy: false, reason: 'Loading...' };
+    
     const balance = wallet?.balance || 0;
-    if (balance < selectedItem.token_cost) {
-      Alert.alert('Insufficient Balance', `You need ${selectedItem.token_cost - balance} more MICO tokens.`);
+    if (balance < item.base_price) {
+      return { canBuy: false, reason: `Need ${item.base_price - balance} more MICO` };
+    }
+    if (userStats.trust_score < item.trust_requirement) {
+      return { canBuy: false, reason: `Trust ${item.trust_requirement}+ required` };
+    }
+    if (userStats.streak < item.streak_requirement) {
+      return { canBuy: false, reason: `${item.streak_requirement} day streak required` };
+    }
+    if (userStats.verified_task_count < item.verified_requirement) {
+      return { canBuy: false, reason: `${item.verified_requirement} verified tasks required` };
+    }
+    
+    // Check if already owned
+    const owned = inventory?.find(inv => inv.item_id === item.id);
+    if (owned) {
+      return { canBuy: false, reason: 'Already owned' };
+    }
+    
+    return { canBuy: true, reason: '' };
+  };
+
+  const handlePurchase = async () => {
+    if (!user?.id || !selectedItem || !character) {
+      Alert.alert('Error', 'Please create a character first to purchase items.');
       return;
     }
 
-    setIsRedeeming(true);
-    const result = await redeemItem(user.id, selectedItem.id);
-    setIsRedeeming(false);
-    setSelectedItem(null);
-
-    if (result.success && result.reward_code) {
-      setSuccessModal({ visible: true, code: result.reward_code });
-    } else {
-      Alert.alert('Error', result.error || 'Failed to redeem item');
+    const { canBuy, reason } = canPurchaseItem(selectedItem);
+    if (!canBuy) {
+      Alert.alert('Cannot Purchase', reason);
+      return;
     }
+
+    setIsPurchasing(true);
+    try {
+      const response = await fetch(`${API_URL}/api/character/${user.id}/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: selectedItem.id }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setSuccessModal({ visible: true, itemName: selectedItem.name });
+        setSelectedItem(null);
+        // Refresh wallet and inventory
+        await Promise.all([
+          fetchWallet(user.id),
+          fetchInventory(user.id),
+        ]);
+      } else {
+        Alert.alert('Purchase Failed', result.detail || result.error || 'Could not complete purchase');
+      }
+    } catch (error) {
+      console.error('Purchase error:', error);
+      Alert.alert('Error', 'Failed to complete purchase');
+    }
+    setIsPurchasing(false);
   };
+
+  const renderItemCard = (item: StoreItem) => {
+    const { canBuy, reason } = canPurchaseItem(item);
+    const isOwned = inventory?.some(inv => inv.item_id === item.id);
+    const rarityColor = RARITY_COLORS[item.rarity] || RARITY_COLORS.common;
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={[styles.itemCard, isOwned && styles.itemCardOwned]}
+        onPress={() => setSelectedItem(item)}
+        data-testid={`store-item-${item.id}`}
+      >
+        {/* Rarity indicator */}
+        <View style={[styles.rarityBadge, { backgroundColor: rarityColor }]}>
+          <Text style={styles.rarityText}>{RARITY_LABELS[item.rarity]}</Text>
+        </View>
+
+        {/* Item icon */}
+        <View style={[styles.itemIconContainer, { borderColor: rarityColor }]}>
+          <Ionicons 
+            name={(CATEGORY_ICONS[item.category] || 'cube') as any} 
+            size={28} 
+            color={rarityColor} 
+          />
+        </View>
+
+        <Text style={styles.itemTitle} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.itemCategory}>
+          {CATEGORY_LABELS[item.category] || item.category}
+        </Text>
+
+        {/* Requirements */}
+        {(item.trust_requirement > 0 || item.streak_requirement > 0) && (
+          <View style={styles.requirementsRow}>
+            {item.trust_requirement > 0 && (
+              <View style={styles.requirementBadge}>
+                <Ionicons name="shield-checkmark" size={10} color={colors.text.tertiary} />
+                <Text style={styles.requirementText}>{item.trust_requirement}</Text>
+              </View>
+            )}
+            {item.streak_requirement > 0 && (
+              <View style={styles.requirementBadge}>
+                <Ionicons name="flame" size={10} color={colors.text.tertiary} />
+                <Text style={styles.requirementText}>{item.streak_requirement}d</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Price / Status */}
+        <View style={styles.itemFooter}>
+          {isOwned ? (
+            <View style={styles.ownedBadge}>
+              <Ionicons name="checkmark-circle" size={14} color={colors.accent.primary} />
+              <Text style={styles.ownedText}>Owned</Text>
+            </View>
+          ) : (
+            <View style={[styles.priceBadge, !canBuy && styles.priceBadgeDisabled]}>
+              <Ionicons 
+                name="diamond" 
+                size={12} 
+                color={canBuy ? colors.accent.primary : colors.text.tertiary} 
+              />
+              <Text style={[styles.priceText, !canBuy && styles.priceTextDisabled]}>
+                {item.base_price}
+              </Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent.primary} />
+          <Text style={styles.loadingText}>Loading Store...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Rewards Shop</Text>
-          <Text style={styles.subtitle}>Redeem your MICO tokens</Text>
+          <Text style={styles.title}>Character Shop</Text>
+          <Text style={styles.subtitle}>Upgrade your MICO character</Text>
         </View>
         <View style={styles.balanceBadge}>
-          <Ionicons name="wallet" size={16} color={colors.accent.primary} />
+          <Ionicons name="diamond" size={16} color={colors.accent.primary} />
           <Text style={styles.balanceText}>{wallet?.balance || 0}</Text>
         </View>
       </View>
+
+      {/* User Stats Bar */}
+      {userStats && (
+        <View style={styles.statsBar}>
+          <View style={styles.statItem}>
+            <Ionicons name="shield-checkmark" size={14} color={colors.accent.primary} />
+            <Text style={styles.statValue}>{userStats.trust_score}</Text>
+            <Text style={styles.statLabel}>Trust</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Ionicons name="flame" size={14} color={colors.status.warning} />
+            <Text style={styles.statValue}>{userStats.streak}</Text>
+            <Text style={styles.statLabel}>Streak</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Ionicons name="checkmark-done" size={14} color={colors.status.success} />
+            <Text style={styles.statValue}>{userStats.verified_task_count}</Text>
+            <Text style={styles.statLabel}>Verified</Text>
+          </View>
+        </View>
+      )}
 
       {/* Categories */}
       <ScrollView
@@ -101,14 +361,15 @@ export default function ShopScreen() {
             key={category}
             style={[styles.categoryChip, selectedCategory === category && styles.categoryChipActive]}
             onPress={() => setSelectedCategory(category)}
+            data-testid={`category-${category}`}
           >
             <Ionicons
-              name={(CATEGORY_ICONS[category] || 'pricetag') as any}
+              name={(CATEGORY_ICONS[category] || 'cube') as any}
               size={16}
               color={selectedCategory === category ? colors.background.primary : colors.text.secondary}
             />
             <Text style={[styles.categoryText, selectedCategory === category && styles.categoryTextActive]}>
-              {category.charAt(0).toUpperCase() + category.slice(1)}
+              {CATEGORY_LABELS[category] || category}
             </Text>
           </TouchableOpacity>
         ))}
@@ -125,42 +386,12 @@ export default function ShopScreen() {
 
         {/* Items Grid */}
         <View style={styles.itemsGrid}>
-          {filteredItems.map(item => {
-            const canAfford = (wallet?.balance || 0) >= item.token_cost;
-            return (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.itemCard}
-                onPress={() => setSelectedItem(item)}
-              >
-                <View style={styles.itemIconContainer}>
-                  <Text style={styles.itemEmoji}>{item.title.split(' ')[0]}</Text>
-                </View>
-                <Text style={styles.itemTitle} numberOfLines={2}>
-                  {item.title.split(' ').slice(1).join(' ')}
-                </Text>
-                <Text style={styles.itemDescription} numberOfLines={2}>
-                  {item.description}
-                </Text>
-                <View style={styles.itemFooter}>
-                  <View style={[styles.priceBadge, !canAfford && styles.priceBadgeDisabled]}>
-                    <Ionicons name="diamond" size={12} color={canAfford ? colors.accent.primary : colors.text.tertiary} />
-                    <Text style={[styles.priceText, !canAfford && styles.priceTextDisabled]}>
-                      {item.token_cost}
-                    </Text>
-                  </View>
-                  {item.stock > 0 && item.stock < 20 && (
-                    <Text style={styles.stockText}>{item.stock} left</Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          {sortedItems.map(renderItemCard)}
         </View>
 
-        {filteredItems.length === 0 && (
+        {sortedItems.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="storefront-outline" size={48} color={colors.text.tertiary} />
+            <Ionicons name="cube-outline" size={48} color={colors.text.tertiary} />
             <Text style={styles.emptyText}>No items in this category</Text>
           </View>
         )}
@@ -177,24 +408,104 @@ export default function ShopScreen() {
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => setSelectedItem(null)}
+                  data-testid="close-item-modal"
                 >
                   <Ionicons name="close" size={24} color={colors.text.secondary} />
                 </TouchableOpacity>
 
-                <View style={styles.modalIconContainer}>
-                  <Text style={styles.modalEmoji}>{selectedItem.title.split(' ')[0]}</Text>
+                {/* Rarity Banner */}
+                <View style={[styles.modalRarityBanner, { backgroundColor: RARITY_COLORS[selectedItem.rarity] }]}>
+                  <Text style={styles.modalRarityText}>{RARITY_LABELS[selectedItem.rarity]}</Text>
                 </View>
 
-                <Text style={styles.modalTitle}>
-                  {selectedItem.title.split(' ').slice(1).join(' ')}
+                <View style={[styles.modalIconContainer, { borderColor: RARITY_COLORS[selectedItem.rarity] }]}>
+                  <Ionicons 
+                    name={(CATEGORY_ICONS[selectedItem.category] || 'cube') as any} 
+                    size={48} 
+                    color={RARITY_COLORS[selectedItem.rarity]} 
+                  />
+                </View>
+
+                <Text style={styles.modalTitle}>{selectedItem.name}</Text>
+                <Text style={styles.modalCategory}>
+                  {CATEGORY_LABELS[selectedItem.category] || selectedItem.category}
                 </Text>
                 <Text style={styles.modalDescription}>{selectedItem.description}</Text>
 
+                {/* Requirements Section */}
+                {(selectedItem.trust_requirement > 0 || 
+                  selectedItem.streak_requirement > 0 || 
+                  selectedItem.verified_requirement > 0) && (
+                  <View style={styles.requirementsSection}>
+                    <Text style={styles.requirementsTitle}>Requirements</Text>
+                    <View style={styles.requirementsList}>
+                      {selectedItem.trust_requirement > 0 && (
+                        <View style={styles.requirementRow}>
+                          <Ionicons name="shield-checkmark" size={16} color={
+                            (userStats?.trust_score || 0) >= selectedItem.trust_requirement 
+                              ? colors.status.success 
+                              : colors.status.error
+                          } />
+                          <Text style={styles.requirementLabel}>
+                            Trust Score: {selectedItem.trust_requirement}+
+                          </Text>
+                          <Text style={[styles.requirementStatus, {
+                            color: (userStats?.trust_score || 0) >= selectedItem.trust_requirement 
+                              ? colors.status.success 
+                              : colors.status.error
+                          }]}>
+                            ({userStats?.trust_score || 0})
+                          </Text>
+                        </View>
+                      )}
+                      {selectedItem.streak_requirement > 0 && (
+                        <View style={styles.requirementRow}>
+                          <Ionicons name="flame" size={16} color={
+                            (userStats?.streak || 0) >= selectedItem.streak_requirement 
+                              ? colors.status.success 
+                              : colors.status.error
+                          } />
+                          <Text style={styles.requirementLabel}>
+                            Day Streak: {selectedItem.streak_requirement}+
+                          </Text>
+                          <Text style={[styles.requirementStatus, {
+                            color: (userStats?.streak || 0) >= selectedItem.streak_requirement 
+                              ? colors.status.success 
+                              : colors.status.error
+                          }]}>
+                            ({userStats?.streak || 0})
+                          </Text>
+                        </View>
+                      )}
+                      {selectedItem.verified_requirement > 0 && (
+                        <View style={styles.requirementRow}>
+                          <Ionicons name="checkmark-done" size={16} color={
+                            (userStats?.verified_task_count || 0) >= selectedItem.verified_requirement 
+                              ? colors.status.success 
+                              : colors.status.error
+                          } />
+                          <Text style={styles.requirementLabel}>
+                            Verified Tasks: {selectedItem.verified_requirement}+
+                          </Text>
+                          <Text style={[styles.requirementStatus, {
+                            color: (userStats?.verified_task_count || 0) >= selectedItem.verified_requirement 
+                              ? colors.status.success 
+                              : colors.status.error
+                          }]}>
+                            ({userStats?.verified_task_count || 0})
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {/* Price Section */}
                 <View style={styles.modalPriceContainer}>
                   <Text style={styles.modalPriceLabel}>Price</Text>
                   <View style={styles.modalPriceBadge}>
                     <Ionicons name="diamond" size={18} color={colors.accent.primary} />
-                    <Text style={styles.modalPriceValue}>{selectedItem.token_cost} MICO</Text>
+                    <Text style={styles.modalPriceValue}>{selectedItem.base_price} MICO</Text>
                   </View>
                 </View>
 
@@ -203,32 +514,54 @@ export default function ShopScreen() {
                   <Text style={styles.modalBalanceValue}>{wallet?.balance || 0} MICO</Text>
                 </View>
 
-                {(wallet?.balance || 0) < selectedItem.token_cost && (
-                  <View style={styles.warningBanner}>
-                    <Ionicons name="warning" size={18} color={colors.status.warning} />
-                    <Text style={styles.warningText}>
-                      You need {selectedItem.token_cost - (wallet?.balance || 0)} more MICO
-                    </Text>
-                  </View>
-                )}
+                {/* Warning if can't purchase */}
+                {(() => {
+                  const { canBuy, reason } = canPurchaseItem(selectedItem);
+                  if (!canBuy && reason !== 'Already owned') {
+                    return (
+                      <View style={styles.warningBanner}>
+                        <Ionicons name="alert-circle" size={18} color={colors.status.warning} />
+                        <Text style={styles.warningText}>{reason}</Text>
+                      </View>
+                    );
+                  }
+                  return null;
+                })()}
 
-                <TouchableOpacity
-                  style={[
-                    styles.redeemButton,
-                    (wallet?.balance || 0) < selectedItem.token_cost && styles.redeemButtonDisabled,
-                  ]}
-                  onPress={handleRedeem}
-                  disabled={(wallet?.balance || 0) < selectedItem.token_cost || isRedeeming}
-                >
-                  {isRedeeming ? (
-                    <ActivityIndicator color={colors.background.primary} />
-                  ) : (
-                    <>
-                      <Ionicons name="gift" size={20} color={colors.background.primary} />
-                      <Text style={styles.redeemButtonText}>Redeem Now</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                {/* Purchase Button */}
+                {(() => {
+                  const { canBuy } = canPurchaseItem(selectedItem);
+                  const isOwned = inventory?.some(inv => inv.item_id === selectedItem.id);
+                  
+                  if (isOwned) {
+                    return (
+                      <View style={styles.ownedBanner}>
+                        <Ionicons name="checkmark-circle" size={24} color={colors.accent.primary} />
+                        <Text style={styles.ownedBannerText}>You own this item</Text>
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      style={[styles.purchaseButton, !canBuy && styles.purchaseButtonDisabled]}
+                      onPress={handlePurchase}
+                      disabled={!canBuy || isPurchasing}
+                      data-testid="purchase-button"
+                    >
+                      {isPurchasing ? (
+                        <ActivityIndicator color={colors.background.primary} />
+                      ) : (
+                        <>
+                          <Ionicons name="bag-add" size={20} color={colors.background.primary} />
+                          <Text style={styles.purchaseButtonText}>
+                            {canBuy ? 'Purchase Item' : 'Cannot Purchase'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })()}
               </>
             )}
           </View>
@@ -242,17 +575,19 @@ export default function ShopScreen() {
             <View style={styles.successIcon}>
               <Ionicons name="checkmark-circle" size={64} color={colors.accent.primary} />
             </View>
-            <Text style={styles.successTitle}>Redemption Successful!</Text>
-            <Text style={styles.successSubtitle}>Your reward code:</Text>
-            <View style={styles.codeBox}>
-              <Text style={styles.codeText}>{successModal.code}</Text>
-            </View>
-            <Text style={styles.codeHint}>Save this code - you can also find it in your Wallet</Text>
+            <Text style={styles.successTitle}>Item Purchased!</Text>
+            <Text style={styles.successSubtitle}>
+              {successModal.itemName} has been added to your inventory.
+            </Text>
+            <Text style={styles.successHint}>
+              Go to the Character tab to equip your new item!
+            </Text>
             <TouchableOpacity
               style={styles.successButton}
-              onPress={() => setSuccessModal({ visible: false, code: '' })}
+              onPress={() => setSuccessModal({ visible: false, itemName: '' })}
+              data-testid="success-done-button"
             >
-              <Text style={styles.successButtonText}>Done</Text>
+              <Text style={styles.successButtonText}>Awesome!</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -265,6 +600,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.primary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: colors.text.secondary,
   },
   header: {
     flexDirection: 'row',
@@ -297,6 +642,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.accent.primary,
+  },
+  statsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background.secondary,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginTop: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: colors.text.tertiary,
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border.primary,
   },
   categoriesContainer: {
     maxHeight: 50,
@@ -343,60 +720,99 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: colors.border.secondary,
+    position: 'relative',
+  },
+  itemCardOwned: {
+    borderColor: colors.accent.primary,
+    backgroundColor: colors.accent.soft,
+  },
+  rarityBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  rarityText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
   itemIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     backgroundColor: colors.background.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
-  },
-  itemEmoji: {
-    fontSize: 24,
+    borderWidth: 2,
   },
   itemTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.text.primary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  itemDescription: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    lineHeight: 16,
-    marginBottom: 10,
+  itemCategory: {
+    fontSize: 11,
+    color: colors.text.tertiary,
+    marginBottom: 8,
   },
-  itemFooter: {
+  requirementsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 8,
+  },
+  requirementBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: colors.background.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 3,
+  },
+  requirementText: {
+    fontSize: 10,
+    color: colors.text.tertiary,
+    fontWeight: '600',
+  },
+  itemFooter: {
+    marginTop: 'auto',
   },
   priceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.accent.soft,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     gap: 4,
+    alignSelf: 'flex-start',
   },
   priceBadgeDisabled: {
     backgroundColor: colors.border.primary,
   },
   priceText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.accent.primary,
   },
   priceTextDisabled: {
     color: colors.text.tertiary,
   },
-  stockText: {
-    fontSize: 11,
-    color: colors.status.warning,
+  ownedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ownedText: {
+    fontSize: 13,
     fontWeight: '600',
+    color: colors.accent.primary,
   },
   emptyState: {
     alignItems: 'center',
@@ -418,6 +834,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
+    maxHeight: '85%',
   },
   closeButton: {
     position: 'absolute',
@@ -425,23 +842,41 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 10,
   },
+  modalRarityBanner: {
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  modalRarityText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   modalIconContainer: {
-    width: 80,
-    height: 80,
+    width: 88,
+    height: 88,
     borderRadius: 24,
     backgroundColor: colors.background.primary,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
     marginBottom: 16,
-  },
-  modalEmoji: {
-    fontSize: 40,
+    borderWidth: 3,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalCategory: {
+    fontSize: 14,
+    color: colors.text.tertiary,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -449,8 +884,39 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
     lineHeight: 22,
+  },
+  requirementsSection: {
+    backgroundColor: colors.background.primary,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  requirementsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.tertiary,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  requirementsList: {
+    gap: 8,
+  },
+  requirementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  requirementLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text.primary,
+  },
+  requirementStatus: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   modalPriceContainer: {
     flexDirection: 'row',
@@ -505,7 +971,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.status.warning,
   },
-  redeemButton: {
+  ownedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent.soft,
+    paddingVertical: 16,
+    borderRadius: 14,
+    gap: 8,
+  },
+  ownedBannerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.accent.primary,
+  },
+  purchaseButton: {
     flexDirection: 'row',
     backgroundColor: colors.accent.primary,
     paddingVertical: 16,
@@ -515,11 +995,11 @@ const styles = StyleSheet.create({
     gap: 8,
     ...shadows.glow,
   },
-  redeemButtonDisabled: {
+  purchaseButtonDisabled: {
     backgroundColor: colors.border.primary,
     shadowColor: 'transparent',
   },
-  redeemButtonText: {
+  purchaseButtonText: {
     fontSize: 17,
     fontWeight: '700',
     color: colors.background.primary,
@@ -560,27 +1040,12 @@ const styles = StyleSheet.create({
   successSubtitle: {
     fontSize: 15,
     color: colors.text.secondary,
-    marginBottom: 12,
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  codeBox: {
-    backgroundColor: colors.background.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.accent.primary,
-    borderStyle: 'dashed',
-    marginBottom: 12,
-  },
-  codeText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.accent.primary,
-    letterSpacing: 1,
-  },
-  codeHint: {
+  successHint: {
     fontSize: 13,
-    color: colors.text.tertiary,
+    color: colors.accent.primary,
     textAlign: 'center',
     marginBottom: 20,
   },

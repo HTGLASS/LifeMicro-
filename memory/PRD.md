@@ -39,16 +39,18 @@ LifeMicro is a cross-platform AI-powered life coach mobile app that helps users 
 - **Mood System**: Thriving, Happy, Neutral, Tired, Weak, Fading
 - **Deterioration**: Visual degradation after inactivity (7+ days = tier regression)
 
-### 5. Item Store & Inventory
-- Cosmetic items: Skins, Accessories, Backgrounds, Particle Effects, Companions
-- Rarity tiers: Common, Uncommon, Rare, Epic, Legendary
-- Trust/streak/task requirements for high-rarity items
-- Purchase cooldowns and settlement delays for low-trust users
+### 5. Character Shop & Inventory ✅ IMPLEMENTED
+- **Purpose**: MICO tokens are spent on character customization items (NOT external rewards)
+- **Item Categories**: Skins, Accessories, Backgrounds, Particle Effects, Companions
+- **Rarity Tiers**: Common, Uncommon, Rare, Epic, Legendary (with color-coded badges)
+- **Requirements**: Higher rarity items require Trust Score, Streak, and Verified Task counts
+- **Purchase Flow**: User buys item → Item goes to character inventory → User can equip on character
+- **Security**: Purchase cooldowns and settlement delays for low-trust users
 
-### 6. Wallet & Marketplace
+### 6. Wallet System
 - MICO token balance tracking
 - Transaction history
-- Marketplace for redeeming tokens (gift cards, digital downloads, etc.)
+- Balance earned from task completion
 
 ## Technical Architecture
 
@@ -131,7 +133,7 @@ LifeMicro is a cross-platform AI-powered life coach mobile app that helps users 
 7. Firebase Push Notifications (configured for iOS & Android)
 8. Hybrid task generation (AI + offline library)
 9. 521 tasks in library across 7 categories
-10. All API endpoints tested and passing (19/19)
+11. **Character Shop Conversion (DONE)**: Converted shop from external marketplace (gift cards) to character item store. Items now go to character inventory for customization.
 
 ### ⏳ Placeholder/Future
 1. Actual camera capture for avatar (expo-camera installed, placeholder generates simple avatar)

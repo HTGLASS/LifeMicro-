@@ -6,6 +6,7 @@ import {
   TrustScore,
   PurchaseResponse,
   PixelData,
+  InventoryItem,
 } from '../types/character';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -15,7 +16,7 @@ interface CharacterState {
   characterResponse: CharacterResponse | null;
   trustScore: TrustScore | null;
   storeItems: CharacterItem[];
-  inventory: CharacterItem[];
+  inventory: InventoryItem[];
   isLoading: boolean;
   error: string | null;
 

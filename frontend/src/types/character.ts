@@ -169,6 +169,16 @@ export interface PurchaseResponse {
   cooldown_expires: string;
 }
 
+export interface InventoryItem {
+  id: string;
+  item_id: string;
+  item_name: string;
+  category: ItemCategory;
+  rarity: ItemRarity;
+  purchased_at: string;
+  is_equipped: boolean;
+}
+
 // Rarity colors
 export const RARITY_COLORS: Record<ItemRarity, string> = {
   common: '#9CA3AF',
