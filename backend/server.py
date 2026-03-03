@@ -1601,6 +1601,623 @@ async def unequip_item(user_id: str, category: str):
     
     return {"success": True, "unequipped_category": category}
 
+# ============== COMMUNITY SYSTEM ==============
+
+from community_system import (
+    UserProfile, FollowRelation, Group, GroupMember,
+    CommunityChallenge, ChallengeParticipant, ActivityFeedItem,
+    CreateProfileRequest, UpdateProfileRequest, CreateGroupRequest,
+    CreateChallengeRequest, VoteChallengeRequest,
+    ProfileVisibility, ChallengeStatus, ChallengeType,
+    ACHIEVEMENTS, check_achievements, create_activity_item
+)
+
+# ---------- PROFILES ----------
+
+@api_router.post("/community/profile")
+async def create_profile(user_id: str, request: CreateProfileRequest):
+    """Create a public profile for a user"""
+    # Check if user exists
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if username is taken
+    existing = await db.profiles.find_one({"username": request.username.lower()})
+    if existing and existing.get("user_id") != user_id:
+        raise HTTPException(status_code=400, detail="Username already taken")
+    
+    # Check if profile already exists
+    profile = await db.profiles.find_one({"user_id": user_id})
+    if profile:
+        raise HTTPException(status_code=400, detail="Profile already exists")
+    
+    # Get user stats
+    character = await db.characters.find_one({"user_id": user_id})
+    trust_data = await db.user_trust.find_one({"user_id": user_id})
+    inventory_count = await db.character_inventory.count_documents({"user_id": user_id})
+    
+    new_profile = UserProfile(
+        user_id=user_id,
+        username=request.username.lower(),
+        display_name=request.display_name or request.username,
+        bio=request.bio,
+        visibility=request.visibility,
+        total_tasks_completed=user.get("completed_tasks", 0),
+        current_streak=user.get("streak", 0),
+        longest_streak=user.get("longest_streak", 0),
+        trust_score=trust_data.get("trust_score", 75) if trust_data else 75,
+        evolution_tier=character.get("evolution_level", "seedling") if character else "seedling",
+        equipped_items_count=len(character.get("equipped_items", {})) if character else 0,
+    )
+    
+    # Check achievements
+    achievement_data = {
+        "total_tasks_completed": new_profile.total_tasks_completed,
+        "current_streak": new_profile.current_streak,
+        "trust_score": new_profile.trust_score,
+        "evolution_tier": new_profile.evolution_tier,
+        "items_owned": inventory_count,
+    }
+    new_profile.achievements = check_achievements(achievement_data)
+    
+    await db.profiles.insert_one(new_profile.model_dump())
+    
+    return {**new_profile.model_dump(), "_id": None}
+
+
+@api_router.get("/community/profile/{user_id}")
+async def get_profile(user_id: str, requester_id: Optional[str] = None):
+    """Get a user's profile"""
+    profile = await db.profiles.find_one({"user_id": user_id}, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    # Check privacy
+    if profile.get("visibility") == "private" and requester_id != user_id:
+        # Return limited info for private profiles
+        return {
+            "username": profile.get("username"),
+            "display_name": profile.get("display_name"),
+            "visibility": "private",
+            "evolution_tier": profile.get("evolution_tier"),
+        }
+    
+    # Check if requester follows this user
+    is_following = False
+    if requester_id and requester_id != user_id:
+        follow = await db.follows.find_one({
+            "follower_id": requester_id,
+            "following_id": user_id
+        })
+        is_following = bool(follow)
+    
+    return {**profile, "is_following": is_following}
+
+
+@api_router.put("/community/profile/{user_id}")
+async def update_profile(user_id: str, request: UpdateProfileRequest):
+    """Update a user's profile"""
+    profile = await db.profiles.find_one({"user_id": user_id})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    updates = {}
+    if request.username:
+        # Check if username is taken
+        existing = await db.profiles.find_one({"username": request.username.lower()})
+        if existing and existing.get("user_id") != user_id:
+            raise HTTPException(status_code=400, detail="Username already taken")
+        updates["username"] = request.username.lower()
+    
+    if request.display_name is not None:
+        updates["display_name"] = request.display_name
+    if request.bio is not None:
+        updates["bio"] = request.bio
+    if request.visibility is not None:
+        updates["visibility"] = request.visibility
+    
+    updates["updated_at"] = datetime.utcnow()
+    
+    await db.profiles.update_one({"user_id": user_id}, {"$set": updates})
+    
+    updated = await db.profiles.find_one({"user_id": user_id}, {"_id": 0})
+    return updated
+
+
+@api_router.get("/community/profile/username/{username}")
+async def get_profile_by_username(username: str, requester_id: Optional[str] = None):
+    """Get a profile by username"""
+    profile = await db.profiles.find_one({"username": username.lower()}, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    return await get_profile(profile["user_id"], requester_id)
+
+
+# ---------- FOLLOW SYSTEM ----------
+
+@api_router.post("/community/follow/{target_user_id}")
+async def follow_user(target_user_id: str, follower_id: str):
+    """Follow a user"""
+    if follower_id == target_user_id:
+        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+    
+    # Check if target has a profile
+    target_profile = await db.profiles.find_one({"user_id": target_user_id})
+    if not target_profile:
+        raise HTTPException(status_code=404, detail="User profile not found")
+    
+    # Check if already following
+    existing = await db.follows.find_one({
+        "follower_id": follower_id,
+        "following_id": target_user_id
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Already following this user")
+    
+    follow = FollowRelation(
+        follower_id=follower_id,
+        following_id=target_user_id
+    )
+    
+    await db.follows.insert_one(follow.model_dump())
+    
+    # Update counts
+    await db.profiles.update_one(
+        {"user_id": target_user_id},
+        {"$inc": {"followers_count": 1}}
+    )
+    await db.profiles.update_one(
+        {"user_id": follower_id},
+        {"$inc": {"following_count": 1}}
+    )
+    
+    return {"success": True, "message": f"Now following {target_profile.get('username')}"}
+
+
+@api_router.delete("/community/follow/{target_user_id}")
+async def unfollow_user(target_user_id: str, follower_id: str):
+    """Unfollow a user"""
+    result = await db.follows.delete_one({
+        "follower_id": follower_id,
+        "following_id": target_user_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=400, detail="Not following this user")
+    
+    # Update counts
+    await db.profiles.update_one(
+        {"user_id": target_user_id},
+        {"$inc": {"followers_count": -1}}
+    )
+    await db.profiles.update_one(
+        {"user_id": follower_id},
+        {"$inc": {"following_count": -1}}
+    )
+    
+    return {"success": True, "message": "Unfollowed user"}
+
+
+@api_router.get("/community/followers/{user_id}")
+async def get_followers(user_id: str, limit: int = 50, offset: int = 0):
+    """Get a user's followers"""
+    follows = await db.follows.find(
+        {"following_id": user_id}
+    ).skip(offset).limit(limit).to_list(limit)
+    
+    follower_ids = [f["follower_id"] for f in follows]
+    
+    # Get profiles
+    profiles = await db.profiles.find(
+        {"user_id": {"$in": follower_ids}},
+        {"_id": 0, "username": 1, "display_name": 1, "user_id": 1, "evolution_tier": 1}
+    ).to_list(limit)
+    
+    return {"followers": profiles, "count": len(profiles)}
+
+
+@api_router.get("/community/following/{user_id}")
+async def get_following(user_id: str, limit: int = 50, offset: int = 0):
+    """Get users that a user follows"""
+    follows = await db.follows.find(
+        {"follower_id": user_id}
+    ).skip(offset).limit(limit).to_list(limit)
+    
+    following_ids = [f["following_id"] for f in follows]
+    
+    # Get profiles
+    profiles = await db.profiles.find(
+        {"user_id": {"$in": following_ids}},
+        {"_id": 0, "username": 1, "display_name": 1, "user_id": 1, "evolution_tier": 1}
+    ).to_list(limit)
+    
+    return {"following": profiles, "count": len(profiles)}
+
+
+# ---------- GROUPS ----------
+
+@api_router.post("/community/groups")
+async def create_group(creator_id: str, request: CreateGroupRequest):
+    """Create a new open group"""
+    # Check if user has profile
+    profile = await db.profiles.find_one({"user_id": creator_id})
+    if not profile:
+        raise HTTPException(status_code=400, detail="Must create a profile first")
+    
+    group = Group(
+        name=request.name,
+        description=request.description,
+        creator_id=creator_id,
+        member_count=1
+    )
+    
+    await db.groups.insert_one(group.model_dump())
+    
+    # Add creator as admin member
+    member = GroupMember(
+        group_id=group.id,
+        user_id=creator_id,
+        role="admin"
+    )
+    await db.group_members.insert_one(member.model_dump())
+    
+    # Update profile
+    await db.profiles.update_one(
+        {"user_id": creator_id},
+        {"$inc": {"groups_count": 1}}
+    )
+    
+    return {**group.model_dump(), "_id": None}
+
+
+@api_router.get("/community/groups")
+async def list_groups(limit: int = 20, offset: int = 0, search: Optional[str] = None):
+    """List all open groups"""
+    query = {"is_open": True}
+    if search:
+        query["name"] = {"$regex": search, "$options": "i"}
+    
+    groups = await db.groups.find(query, {"_id": 0}).skip(offset).limit(limit).to_list(limit)
+    total = await db.groups.count_documents(query)
+    
+    return {"groups": groups, "total": total}
+
+
+@api_router.get("/community/groups/{group_id}")
+async def get_group(group_id: str, user_id: Optional[str] = None):
+    """Get group details"""
+    group = await db.groups.find_one({"id": group_id}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Check if user is member
+    is_member = False
+    if user_id:
+        member = await db.group_members.find_one({
+            "group_id": group_id,
+            "user_id": user_id
+        })
+        is_member = bool(member)
+    
+    return {**group, "is_member": is_member}
+
+
+@api_router.post("/community/groups/{group_id}/join")
+async def join_group(group_id: str, user_id: str):
+    """Join an open group"""
+    group = await db.groups.find_one({"id": group_id})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if not group.get("is_open"):
+        raise HTTPException(status_code=403, detail="Group is not open")
+    
+    # Check if already member
+    existing = await db.group_members.find_one({
+        "group_id": group_id,
+        "user_id": user_id
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Already a member")
+    
+    member = GroupMember(
+        group_id=group_id,
+        user_id=user_id
+    )
+    await db.group_members.insert_one(member.model_dump())
+    
+    # Update counts
+    await db.groups.update_one(
+        {"id": group_id},
+        {"$inc": {"member_count": 1}}
+    )
+    await db.profiles.update_one(
+        {"user_id": user_id},
+        {"$inc": {"groups_count": 1}}
+    )
+    
+    return {"success": True, "message": f"Joined group {group.get('name')}"}
+
+
+@api_router.post("/community/groups/{group_id}/leave")
+async def leave_group(group_id: str, user_id: str):
+    """Leave a group"""
+    member = await db.group_members.find_one({
+        "group_id": group_id,
+        "user_id": user_id
+    })
+    if not member:
+        raise HTTPException(status_code=400, detail="Not a member of this group")
+    
+    if member.get("role") == "admin":
+        # Check if there are other admins
+        admin_count = await db.group_members.count_documents({
+            "group_id": group_id,
+            "role": "admin"
+        })
+        if admin_count == 1:
+            raise HTTPException(status_code=400, detail="Cannot leave: you are the only admin")
+    
+    await db.group_members.delete_one({"id": member.get("id")})
+    
+    # Update counts
+    await db.groups.update_one(
+        {"id": group_id},
+        {"$inc": {"member_count": -1}}
+    )
+    await db.profiles.update_one(
+        {"user_id": user_id},
+        {"$inc": {"groups_count": -1}}
+    )
+    
+    return {"success": True, "message": "Left the group"}
+
+
+@api_router.get("/community/groups/{group_id}/members")
+async def get_group_members(group_id: str, limit: int = 50, offset: int = 0):
+    """Get group members"""
+    members = await db.group_members.find(
+        {"group_id": group_id}
+    ).skip(offset).limit(limit).to_list(limit)
+    
+    user_ids = [m["user_id"] for m in members]
+    profiles = await db.profiles.find(
+        {"user_id": {"$in": user_ids}},
+        {"_id": 0, "username": 1, "display_name": 1, "user_id": 1, "evolution_tier": 1}
+    ).to_list(limit)
+    
+    # Merge member info with profiles
+    profile_map = {p["user_id"]: p for p in profiles}
+    result = []
+    for m in members:
+        profile = profile_map.get(m["user_id"], {})
+        result.append({
+            **profile,
+            "role": m.get("role", "member"),
+            "tasks_contributed": m.get("tasks_contributed", 0),
+            "joined_at": m.get("joined_at")
+        })
+    
+    return {"members": result, "count": len(result)}
+
+
+# ---------- CHALLENGES ----------
+
+@api_router.post("/community/groups/{group_id}/challenges")
+async def create_challenge(group_id: str, creator_id: str, request: CreateChallengeRequest):
+    """Create a new challenge (requires voting)"""
+    # Check if member
+    member = await db.group_members.find_one({
+        "group_id": group_id,
+        "user_id": creator_id
+    })
+    if not member:
+        raise HTTPException(status_code=403, detail="Must be a group member")
+    
+    voting_ends = datetime.utcnow() + timedelta(hours=request.voting_hours)
+    
+    challenge = CommunityChallenge(
+        group_id=group_id,
+        creator_id=creator_id,
+        title=request.title,
+        description=request.description,
+        challenge_type=request.challenge_type,
+        target_value=request.target_value,
+        category=request.category,
+        duration_days=request.duration_days,
+        voting_ends_at=voting_ends,
+        votes_for=1,  # Creator automatically votes for
+        voters=[creator_id]
+    )
+    
+    await db.challenges.insert_one(challenge.model_dump())
+    
+    return {**challenge.model_dump(), "_id": None}
+
+
+@api_router.post("/community/challenges/{challenge_id}/vote")
+async def vote_on_challenge(challenge_id: str, user_id: str, request: VoteChallengeRequest):
+    """Vote on a proposed challenge"""
+    challenge = await db.challenges.find_one({"id": challenge_id})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    
+    if challenge.get("status") != "proposed":
+        raise HTTPException(status_code=400, detail="Voting period has ended")
+    
+    if datetime.utcnow() > challenge.get("voting_ends_at"):
+        raise HTTPException(status_code=400, detail="Voting period has ended")
+    
+    # Check if member of group
+    member = await db.group_members.find_one({
+        "group_id": challenge.get("group_id"),
+        "user_id": user_id
+    })
+    if not member:
+        raise HTTPException(status_code=403, detail="Must be a group member")
+    
+    # Check if already voted
+    if user_id in challenge.get("voters", []):
+        raise HTTPException(status_code=400, detail="Already voted")
+    
+    # Add vote
+    update = {
+        "$push": {"voters": user_id},
+        "$inc": {"votes_for" if request.vote else "votes_against": 1}
+    }
+    
+    await db.challenges.update_one({"id": challenge_id}, update)
+    
+    # Check if enough votes to start
+    updated = await db.challenges.find_one({"id": challenge_id})
+    votes_for = updated.get("votes_for", 0)
+    votes_against = updated.get("votes_against", 0)
+    votes_needed = updated.get("votes_needed", 5)
+    
+    if votes_for >= votes_needed and votes_for > votes_against:
+        # Start the challenge
+        starts_at = datetime.utcnow()
+        ends_at = starts_at + timedelta(days=updated.get("duration_days", 7))
+        
+        await db.challenges.update_one(
+            {"id": challenge_id},
+            {"$set": {
+                "status": "active",
+                "starts_at": starts_at,
+                "ends_at": ends_at
+            }}
+        )
+        
+        # Update group
+        await db.groups.update_one(
+            {"id": challenge.get("group_id")},
+            {"$inc": {"active_challenges": 1}}
+        )
+    
+    return {
+        "success": True,
+        "votes_for": votes_for + (1 if request.vote else 0),
+        "votes_against": votes_against + (0 if request.vote else 1),
+        "status": "active" if votes_for >= votes_needed else "proposed"
+    }
+
+
+@api_router.get("/community/groups/{group_id}/challenges")
+async def get_group_challenges(group_id: str, status: Optional[str] = None):
+    """Get challenges for a group"""
+    query = {"group_id": group_id}
+    if status:
+        query["status"] = status
+    
+    challenges = await db.challenges.find(query, {"_id": 0}).sort("created_at", -1).to_list(50)
+    
+    return {"challenges": challenges}
+
+
+@api_router.post("/community/challenges/{challenge_id}/join")
+async def join_challenge(challenge_id: str, user_id: str):
+    """Join an active challenge"""
+    challenge = await db.challenges.find_one({"id": challenge_id})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    
+    if challenge.get("status") != "active":
+        raise HTTPException(status_code=400, detail="Challenge is not active")
+    
+    # Check if member of group
+    member = await db.group_members.find_one({
+        "group_id": challenge.get("group_id"),
+        "user_id": user_id
+    })
+    if not member:
+        raise HTTPException(status_code=403, detail="Must be a group member")
+    
+    # Check if already joined
+    if user_id in challenge.get("participants", []):
+        raise HTTPException(status_code=400, detail="Already participating")
+    
+    # Add participant
+    await db.challenges.update_one(
+        {"id": challenge_id},
+        {"$push": {"participants": user_id}}
+    )
+    
+    participant = ChallengeParticipant(
+        challenge_id=challenge_id,
+        user_id=user_id
+    )
+    await db.challenge_participants.insert_one(participant.model_dump())
+    
+    return {"success": True, "message": "Joined challenge"}
+
+
+# ---------- LEADERBOARD & ACTIVITY ----------
+
+@api_router.get("/community/leaderboard")
+async def get_leaderboard(category: str = "tasks", limit: int = 50):
+    """Get global leaderboard"""
+    sort_field = {
+        "tasks": "total_tasks_completed",
+        "streak": "current_streak",
+        "trust": "trust_score",
+        "items": "equipped_items_count"
+    }.get(category, "total_tasks_completed")
+    
+    profiles = await db.profiles.find(
+        {"visibility": "public"},
+        {"_id": 0, "username": 1, "display_name": 1, "user_id": 1, 
+         "evolution_tier": 1, sort_field: 1, "achievements": 1}
+    ).sort(sort_field, -1).limit(limit).to_list(limit)
+    
+    # Add rank
+    for i, p in enumerate(profiles):
+        p["rank"] = i + 1
+    
+    return {"leaderboard": profiles, "category": category}
+
+
+@api_router.get("/community/activity")
+async def get_activity_feed(limit: int = 50, offset: int = 0, user_id: Optional[str] = None):
+    """Get global activity feed"""
+    query = {}
+    
+    # If user_id provided, get activities from followed users
+    if user_id:
+        follows = await db.follows.find({"follower_id": user_id}).to_list(1000)
+        following_ids = [f["following_id"] for f in follows]
+        following_ids.append(user_id)  # Include own activities
+        query["user_id"] = {"$in": following_ids}
+    
+    activities = await db.activities.find(query, {"_id": 0}).sort(
+        "created_at", -1
+    ).skip(offset).limit(limit).to_list(limit)
+    
+    return {"activities": activities}
+
+
+@api_router.post("/community/activity")
+async def post_activity(user_id: str, activity_type: str, title: str, description: Optional[str] = None, metadata: Optional[Dict] = None):
+    """Post an activity to the feed (internal use)"""
+    profile = await db.profiles.find_one({"user_id": user_id})
+    if not profile or profile.get("visibility") != "public":
+        return {"success": False, "message": "Profile not public"}
+    
+    activity = ActivityFeedItem(
+        user_id=user_id,
+        username=profile.get("username", "unknown"),
+        activity_type=activity_type,
+        title=title,
+        description=description,
+        metadata=metadata or {}
+    )
+    
+    await db.activities.insert_one(activity.model_dump())
+    
+    return {"success": True}
+
+
 # ---------- SEED DATA ----------
 
 async def seed_marketplace():

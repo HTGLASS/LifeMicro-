@@ -169,6 +169,7 @@ export default function CharacterScreen() {
     if (success) {
       setShowInventoryModal(false);
       fetchInventory(user.id);
+      fetchCharacter(user.id); // Refresh to update equipped items display
     }
   };
 
@@ -179,7 +180,29 @@ export default function CharacterScreen() {
     if (success) {
       setShowInventoryModal(false);
       fetchInventory(user.id);
+      fetchCharacter(user.id); // Refresh to update equipped items display
     }
+  };
+
+  // Get equipped items info for avatar visual overlay
+  const getEquippedItemsInfo = () => {
+    if (!character?.equipped_items || !inventory) return {};
+    
+    const equippedInfo: Record<string, { item_id: string; item_name: string; category: ItemCategory; rarity: string }> = {};
+    
+    Object.entries(character.equipped_items).forEach(([category, itemId]) => {
+      const inventoryItem = inventory.find(item => item.item_id === itemId);
+      if (inventoryItem) {
+        equippedInfo[category] = {
+          item_id: itemId as string,
+          item_name: inventoryItem.item_name,
+          category: category as ItemCategory,
+          rarity: inventoryItem.rarity,
+        };
+      }
+    });
+    
+    return equippedInfo;
   };
 
   // Show create character modal if no character exists
@@ -275,6 +298,8 @@ export default function CharacterScreen() {
             mood={mood}
             moodEffects={moodConfig?.visual_effects}
             glowColor={moodConfig?.glow_color}
+            equippedItems={getEquippedItemsInfo()}
+            showEquippedOverlay={true}
           />
           
           <View style={styles.moodBadge}>
