@@ -39,9 +39,23 @@ LifeMicro is a cross-platform AI-powered life coach mobile app that helps users 
 - **Mood System**: Thriving, Happy, Neutral, Tired, Weak, Fading
 - **Deterioration**: Visual degradation after inactivity (7+ days = tier regression)
 
-### 5. Character Shop & Inventory ✅ IMPLEMENTED
-- **Purpose**: MICO tokens are spent on character customization items (NOT external rewards)
-- **Item Categories**: Skins, Accessories, Backgrounds, Particle Effects, Companions
+### 5. Character Shop & Inventory ✅ IMPLEMENTED (78 Items, 14 Categories)
+- **Purpose**: MICO tokens are spent on character customization items
+- **14 Item Categories** (equipable slots):
+  1. Skin - Base character appearance
+  2. Head - Hats, helmets, crowns
+  3. Face - Glasses, masks, face paint
+  4. Eyes - Eye styles, special eyes
+  5. Mouth - Expressions, mouth accessories
+  6. Body - Clothing, armor, outfits
+  7. Back - Wings, capes, backpacks
+  8. Hands - Gloves, held items
+  9. Feet - Shoes, boots
+  10. Background - Scene backgrounds
+  11. Foreground - Overlay effects
+  12. Aura - Glowing effects around character
+  13. Particle - Sparkles, flames, trails
+  14. Companion - Pets that follow
 - **Rarity Tiers**: Common, Uncommon, Rare, Epic, Legendary (with color-coded badges)
 - **Requirements**: Higher rarity items require Trust Score, Streak, and Verified Task counts
 - **Purchase Flow**: User buys item → Item goes to character inventory → User can equip on character

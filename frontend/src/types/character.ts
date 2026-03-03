@@ -53,7 +53,21 @@ export interface TaskCompleteResponse {
 export type EvolutionTier = 'seedling' | 'sprout' | 'bloom' | 'flourish' | 'transcend';
 export type CharacterMood = 'thriving' | 'happy' | 'neutral' | 'tired' | 'weak' | 'fading';
 export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-export type ItemCategory = 'skin' | 'accessory' | 'background' | 'particle_effect' | 'companion' | 'seasonal';
+export type ItemCategory = 
+  | 'skin' 
+  | 'head' 
+  | 'face' 
+  | 'eyes' 
+  | 'mouth' 
+  | 'body' 
+  | 'back' 
+  | 'hands' 
+  | 'feet' 
+  | 'background' 
+  | 'foreground' 
+  | 'aura' 
+  | 'particle' 
+  | 'companion';
 
 export interface CharacterStats {
   energy: number;
