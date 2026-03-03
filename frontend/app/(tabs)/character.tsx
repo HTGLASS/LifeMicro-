@@ -17,6 +17,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { useUserStore } from '../../src/store/userStore';
 import { useCharacterStore } from '../../src/store/characterStore';
 import PixelatedAvatar from '../../src/components/PixelatedAvatar';
+import EquippedItemsGrid from '../../src/components/EquippedItemsGrid';
+import InventoryModal from '../../src/components/InventoryModal';
 import { pixelateImage, generatePlaceholderAvatar } from '../../src/utils/pixelation';
 import { colors, shadows } from '../../src/constants/theme';
 import {
@@ -24,6 +26,8 @@ import {
   RARITY_COLORS,
   MOOD_EXPRESSIONS,
   EvolutionTier,
+  ItemCategory,
+  InventoryItem,
 } from '../../src/types/character';
 
 const EVOLUTION_DISPLAY: Record<EvolutionTier, { name: string; icon: string }> = {
@@ -40,15 +44,22 @@ export default function CharacterScreen() {
     character,
     characterResponse,
     trustScore,
+    inventory,
     fetchCharacter,
     createCharacter,
     updateAvatar,
     fetchTrustScore,
+    fetchInventory,
+    equipItem,
+    unequipItem,
     isLoading,
   } = useCharacterStore();
 
   const [showCamera, setShowCamera] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [selectedSlotCategory, setSelectedSlotCategory] = useState<ItemCategory | null>(null);
+  const [selectedSlotItem, setSelectedSlotItem] = useState<InventoryItem | null>(null);
   const [characterName, setCharacterName] = useState('Micro');
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
@@ -57,6 +68,7 @@ export default function CharacterScreen() {
     if (user?.id) {
       fetchCharacter(user.id);
       fetchTrustScore(user.id);
+      fetchInventory(user.id);
     }
   }, [user?.id]);
 
@@ -127,6 +139,33 @@ export default function CharacterScreen() {
     } catch (error) {
       console.error('Error capturing photo:', error);
       Alert.alert('Error', 'Failed to capture photo');
+    }
+  };
+
+  // Handle slot press in equipped items grid
+  const handleSlotPress = (category: ItemCategory, equippedItem: InventoryItem | null) => {
+    setSelectedSlotCategory(category);
+    setSelectedSlotItem(equippedItem);
+    setShowInventoryModal(true);
+  };
+
+  // Handle equip item
+  const handleEquipItem = async (itemId: string) => {
+    if (!user?.id) return;
+    const success = await equipItem(user.id, itemId);
+    if (success) {
+      setShowInventoryModal(false);
+      fetchInventory(user.id);
+    }
+  };
+
+  // Handle unequip item
+  const handleUnequipItem = async (category: string) => {
+    if (!user?.id) return;
+    const success = await unequipItem(user.id, category);
+    if (success) {
+      setShowInventoryModal(false);
+      fetchInventory(user.id);
     }
   };
 
@@ -297,6 +336,13 @@ export default function CharacterScreen() {
           </View>
         </View>
 
+        {/* Equipped Items Grid - 14 Slots */}
+        <EquippedItemsGrid
+          equippedItems={character?.equipped_items || {}}
+          inventory={inventory}
+          onSlotPress={handleSlotPress}
+        />
+
         {/* Trust Score Section */}
         {trustScore && (
           <View style={styles.trustCard}>
@@ -344,6 +390,22 @@ export default function CharacterScreen() {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* Inventory Modal */}
+      <InventoryModal
+        visible={showInventoryModal}
+        category={selectedSlotCategory}
+        currentEquipped={selectedSlotItem}
+        inventory={inventory}
+        isLoading={isLoading}
+        onEquip={handleEquipItem}
+        onUnequip={handleUnequipItem}
+        onClose={() => {
+          setShowInventoryModal(false);
+          setSelectedSlotCategory(null);
+          setSelectedSlotItem(null);
+        }}
+      />
 
       {/* Camera Modal */}
       <Modal visible={showCamera} animationType="slide">
