@@ -149,6 +149,7 @@ LifeMicro is a cross-platform AI-powered life coach mobile app that helps users 
 9. 521 tasks in library across 7 categories
 11. **Character Shop Conversion (DONE)**: Converted shop from external marketplace (gift cards) to character item store. Items now go to character inventory for customization.
 12. **Equipped Items UI (DONE)**: Built 14-slot equipment grid on Character tab showing all equip slots with icons. Tap to open inventory modal for equipping/unequipping items.
+13. **Camera Capture for Avatar (DONE)**: Implemented `processImageToPixels` function that processes camera photos into pixelated avatar data. Works on web (Canvas API) and native (hash-based generation).
 
 ### ⏳ Placeholder/Future
 1. Actual camera capture for avatar (expo-camera installed, placeholder generates simple avatar)
