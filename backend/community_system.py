@@ -146,6 +146,56 @@ class ChallengeParticipant(BaseModel):
     joined_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class GroupMessage(BaseModel):
+    """Public group chat message"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    group_id: str
+    user_id: str
+    username: str
+    message_type: str = "message"  # message, announcement, system
+    content: str
+    is_pinned: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ReportReason(str, Enum):
+    SPAM = "spam"
+    HARASSMENT = "harassment"
+    CHEATING = "cheating"
+    INAPPROPRIATE = "inappropriate"
+    IMPERSONATION = "impersonation"
+    OTHER = "other"
+
+
+class ReportStatus(str, Enum):
+    PENDING = "pending"
+    REVIEWED = "reviewed"
+    ACTIONED = "actioned"
+    DISMISSED = "dismissed"
+
+
+class UserReport(BaseModel):
+    """Report a user for abuse"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    reporter_id: str
+    reported_user_id: str
+    reason: ReportReason
+    description: Optional[str] = None
+    evidence_type: Optional[str] = None  # message_id, profile, challenge, etc.
+    evidence_id: Optional[str] = None
+    status: ReportStatus = ReportStatus.PENDING
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    reviewed_at: Optional[datetime] = None
+
+
+class UserBlock(BaseModel):
+    """Block a user from appearing in your feed"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    blocker_id: str
+    blocked_id: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class ActivityFeedItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
@@ -190,6 +240,18 @@ class CreateChallengeRequest(BaseModel):
 
 class VoteChallengeRequest(BaseModel):
     vote: bool  # True = for, False = against
+
+
+class SendMessageRequest(BaseModel):
+    content: str
+    message_type: str = "message"  # message, announcement
+
+
+class ReportUserRequest(BaseModel):
+    reason: ReportReason
+    description: Optional[str] = None
+    evidence_type: Optional[str] = None
+    evidence_id: Optional[str] = None
 
 
 # ============== Achievement Definitions ==============
@@ -295,18 +357,25 @@ __all__ = [
     "ProfileVisibility",
     "ChallengeStatus",
     "ChallengeType",
+    "ReportReason",
+    "ReportStatus",
     "UserProfile",
     "FollowRelation",
     "Group",
     "GroupMember",
     "CommunityChallenge",
     "ChallengeParticipant",
+    "GroupMessage",
+    "UserReport",
+    "UserBlock",
     "ActivityFeedItem",
     "CreateProfileRequest",
     "UpdateProfileRequest",
     "CreateGroupRequest",
     "CreateChallengeRequest",
     "VoteChallengeRequest",
+    "SendMessageRequest",
+    "ReportUserRequest",
     "ACHIEVEMENTS",
     "check_achievements",
     "create_activity_item",

@@ -2218,6 +2218,312 @@ async def post_activity(user_id: str, activity_type: str, title: str, descriptio
     return {"success": True}
 
 
+# ---------- GROUP CHAT & MESSAGES ----------
+
+from community_system import GroupMessage, SendMessageRequest, UserReport, UserBlock, ReportUserRequest, ReportReason, ReportStatus
+
+@api_router.post("/community/groups/{group_id}/messages")
+async def send_group_message(group_id: str, user_id: str, request: SendMessageRequest):
+    """Send a message to a group (public chat)"""
+    # Check if member
+    member = await db.group_members.find_one({
+        "group_id": group_id,
+        "user_id": user_id
+    })
+    if not member:
+        raise HTTPException(status_code=403, detail="Must be a group member")
+    
+    # Get user profile for username
+    profile = await db.profiles.find_one({"user_id": user_id})
+    if not profile:
+        raise HTTPException(status_code=400, detail="Must have a profile to send messages")
+    
+    # Only admins can send announcements
+    if request.message_type == "announcement" and member.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can send announcements")
+    
+    message = GroupMessage(
+        group_id=group_id,
+        user_id=user_id,
+        username=profile.get("username"),
+        message_type=request.message_type,
+        content=request.content
+    )
+    
+    await db.group_messages.insert_one(message.model_dump())
+    
+    return {**message.model_dump(), "_id": None}
+
+
+@api_router.get("/community/groups/{group_id}/messages")
+async def get_group_messages(group_id: str, limit: int = 50, offset: int = 0, user_id: Optional[str] = None):
+    """Get messages from a group (public)"""
+    # Check if member (optional - messages are public but we track who's viewing)
+    
+    # Get blocked users if user_id provided
+    blocked_ids = []
+    if user_id:
+        blocks = await db.user_blocks.find({"blocker_id": user_id}).to_list(1000)
+        blocked_ids = [b["blocked_id"] for b in blocks]
+    
+    query = {"group_id": group_id}
+    if blocked_ids:
+        query["user_id"] = {"$nin": blocked_ids}
+    
+    messages = await db.group_messages.find(
+        query, {"_id": 0}
+    ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
+    
+    # Reverse to show oldest first
+    messages.reverse()
+    
+    return {"messages": messages, "count": len(messages)}
+
+
+@api_router.post("/community/groups/{group_id}/messages/{message_id}/pin")
+async def pin_message(group_id: str, message_id: str, user_id: str):
+    """Pin a message (admin only)"""
+    member = await db.group_members.find_one({
+        "group_id": group_id,
+        "user_id": user_id,
+        "role": "admin"
+    })
+    if not member:
+        raise HTTPException(status_code=403, detail="Only admins can pin messages")
+    
+    result = await db.group_messages.update_one(
+        {"id": message_id, "group_id": group_id},
+        {"$set": {"is_pinned": True}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    return {"success": True}
+
+
+@api_router.get("/community/groups/{group_id}/messages/pinned")
+async def get_pinned_messages(group_id: str):
+    """Get pinned messages for a group"""
+    messages = await db.group_messages.find(
+        {"group_id": group_id, "is_pinned": True},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(10)
+    
+    return {"pinned_messages": messages}
+
+
+# ---------- CHALLENGE PROGRESS TRACKING ----------
+
+@api_router.post("/community/challenges/{challenge_id}/progress")
+async def update_challenge_progress(challenge_id: str, user_id: str, increment: int = 1):
+    """Update a participant's progress in a challenge (called when tasks are completed)"""
+    challenge = await db.challenges.find_one({"id": challenge_id})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    
+    if challenge.get("status") != "active":
+        raise HTTPException(status_code=400, detail="Challenge is not active")
+    
+    # Check if participant
+    participant = await db.challenge_participants.find_one({
+        "challenge_id": challenge_id,
+        "user_id": user_id
+    })
+    if not participant:
+        raise HTTPException(status_code=400, detail="Not a participant in this challenge")
+    
+    # Update participant progress
+    new_progress = participant.get("progress", 0) + increment
+    completed = new_progress >= challenge.get("target_value", 0)
+    
+    await db.challenge_participants.update_one(
+        {"id": participant.get("id")},
+        {"$set": {"progress": new_progress, "completed": completed}}
+    )
+    
+    # Update total challenge progress
+    await db.challenges.update_one(
+        {"id": challenge_id},
+        {"$inc": {"current_progress": increment}}
+    )
+    
+    # If completed, award bonus tokens
+    reward_given = 0
+    if completed and not participant.get("completed"):
+        reward_amount = challenge.get("reward_per_participant", 50)
+        await db.wallets.update_one(
+            {"user_id": user_id},
+            {"$inc": {"balance": reward_amount}}
+        )
+        reward_given = reward_amount
+    
+    return {
+        "success": True,
+        "new_progress": new_progress,
+        "target": challenge.get("target_value"),
+        "completed": completed,
+        "reward_given": reward_given
+    }
+
+
+@api_router.get("/community/challenges/{challenge_id}/progress")
+async def get_challenge_progress(challenge_id: str):
+    """Get real-time progress for a challenge"""
+    challenge = await db.challenges.find_one({"id": challenge_id}, {"_id": 0})
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    
+    # Get all participants with progress
+    participants = await db.challenge_participants.find(
+        {"challenge_id": challenge_id}
+    ).to_list(1000)
+    
+    # Get profiles for usernames
+    user_ids = [p["user_id"] for p in participants]
+    profiles = await db.profiles.find(
+        {"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "username": 1}
+    ).to_list(1000)
+    profile_map = {p["user_id"]: p["username"] for p in profiles}
+    
+    participant_progress = []
+    for p in participants:
+        participant_progress.append({
+            "user_id": p["user_id"],
+            "username": profile_map.get(p["user_id"], "unknown"),
+            "progress": p.get("progress", 0),
+            "completed": p.get("completed", False)
+        })
+    
+    # Sort by progress descending
+    participant_progress.sort(key=lambda x: x["progress"], reverse=True)
+    
+    return {
+        "challenge_id": challenge_id,
+        "title": challenge.get("title"),
+        "status": challenge.get("status"),
+        "target_value": challenge.get("target_value"),
+        "current_progress": challenge.get("current_progress", 0),
+        "participant_count": len(participants),
+        "completed_count": sum(1 for p in participants if p.get("completed")),
+        "participants": participant_progress,
+        "ends_at": challenge.get("ends_at"),
+        "reward_per_participant": challenge.get("reward_per_participant", 50)
+    }
+
+
+# ---------- REPORTING SYSTEM ----------
+
+@api_router.post("/community/report")
+async def report_user(reporter_id: str, request: ReportUserRequest, reported_user_id: str):
+    """Report a user for abuse"""
+    # Can't report yourself
+    if reporter_id == reported_user_id:
+        raise HTTPException(status_code=400, detail="Cannot report yourself")
+    
+    # Check if already reported (prevent spam)
+    existing = await db.reports.find_one({
+        "reporter_id": reporter_id,
+        "reported_user_id": reported_user_id,
+        "status": "pending"
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="You already have a pending report for this user")
+    
+    report = UserReport(
+        reporter_id=reporter_id,
+        reported_user_id=reported_user_id,
+        reason=request.reason,
+        description=request.description,
+        evidence_type=request.evidence_type,
+        evidence_id=request.evidence_id
+    )
+    
+    await db.reports.insert_one(report.model_dump())
+    
+    return {
+        "success": True,
+        "report_id": report.id,
+        "message": "Report submitted. Thank you for helping keep the community safe."
+    }
+
+
+@api_router.get("/community/reports")
+async def get_my_reports(user_id: str):
+    """Get reports submitted by a user"""
+    reports = await db.reports.find(
+        {"reporter_id": user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    return {"reports": reports}
+
+
+# ---------- BLOCKING SYSTEM ----------
+
+@api_router.post("/community/block/{target_user_id}")
+async def block_user(blocker_id: str, target_user_id: str):
+    """Block a user (hide their content from your feed)"""
+    if blocker_id == target_user_id:
+        raise HTTPException(status_code=400, detail="Cannot block yourself")
+    
+    # Check if already blocked
+    existing = await db.user_blocks.find_one({
+        "blocker_id": blocker_id,
+        "blocked_id": target_user_id
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="User already blocked")
+    
+    block = UserBlock(
+        blocker_id=blocker_id,
+        blocked_id=target_user_id
+    )
+    
+    await db.user_blocks.insert_one(block.model_dump())
+    
+    # Also unfollow if following
+    await db.follows.delete_one({
+        "follower_id": blocker_id,
+        "following_id": target_user_id
+    })
+    
+    return {"success": True, "message": "User blocked"}
+
+
+@api_router.delete("/community/block/{target_user_id}")
+async def unblock_user(blocker_id: str, target_user_id: str):
+    """Unblock a user"""
+    result = await db.user_blocks.delete_one({
+        "blocker_id": blocker_id,
+        "blocked_id": target_user_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=400, detail="User not blocked")
+    
+    return {"success": True, "message": "User unblocked"}
+
+
+@api_router.get("/community/blocked")
+async def get_blocked_users(user_id: str):
+    """Get list of blocked users"""
+    blocks = await db.user_blocks.find(
+        {"blocker_id": user_id}
+    ).to_list(1000)
+    
+    blocked_ids = [b["blocked_id"] for b in blocks]
+    
+    # Get profiles
+    profiles = await db.profiles.find(
+        {"user_id": {"$in": blocked_ids}},
+        {"_id": 0, "username": 1, "user_id": 1}
+    ).to_list(1000)
+    
+    return {"blocked_users": profiles}
+
+
 # ---------- SEED DATA ----------
 
 async def seed_marketplace():

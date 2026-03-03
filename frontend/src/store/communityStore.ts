@@ -69,6 +69,35 @@ export interface ActivityItem {
   created_at: string;
 }
 
+export interface GroupMessage {
+  id: string;
+  group_id: string;
+  user_id: string;
+  username: string;
+  message_type: 'message' | 'announcement' | 'system';
+  content: string;
+  is_pinned: boolean;
+  created_at: string;
+}
+
+export interface ChallengeProgress {
+  challenge_id: string;
+  title: string;
+  status: string;
+  target_value: number;
+  current_progress: number;
+  participant_count: number;
+  completed_count: number;
+  participants: {
+    user_id: string;
+    username: string;
+    progress: number;
+    completed: boolean;
+  }[];
+  ends_at: string | null;
+  reward_per_participant: number;
+}
+
 export interface LeaderboardEntry {
   user_id: string;
   username: string;
@@ -88,6 +117,9 @@ interface CommunityState {
   challenges: Challenge[];
   leaderboard: LeaderboardEntry[];
   activityFeed: ActivityItem[];
+  groupMessages: GroupMessage[];
+  challengeProgress: ChallengeProgress | null;
+  blockedUsers: string[];
   isLoading: boolean;
   error: string | null;
 
@@ -114,6 +146,17 @@ interface CommunityState {
   createChallenge: (groupId: string, userId: string, data: any) => Promise<boolean>;
   voteOnChallenge: (challengeId: string, userId: string, vote: boolean) => Promise<boolean>;
   joinChallenge: (challengeId: string, userId: string) => Promise<boolean>;
+  fetchChallengeProgress: (challengeId: string) => Promise<void>;
+
+  // Chat actions
+  fetchGroupMessages: (groupId: string, userId?: string) => Promise<void>;
+  sendGroupMessage: (groupId: string, userId: string, content: string, type?: string) => Promise<boolean>;
+
+  // Report & Block actions
+  reportUser: (reporterId: string, reportedId: string, reason: string, description?: string) => Promise<boolean>;
+  blockUser: (blockerId: string, targetId: string) => Promise<boolean>;
+  unblockUser: (blockerId: string, targetId: string) => Promise<boolean>;
+  fetchBlockedUsers: (userId: string) => Promise<void>;
 
   // Feed actions
   fetchLeaderboard: (category?: string) => Promise<void>;
@@ -129,6 +172,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   challenges: [],
   leaderboard: [],
   activityFeed: [],
+  groupMessages: [],
+  challengeProgress: null,
+  blockedUsers: [],
   isLoading: false,
   error: null,
 
@@ -423,6 +469,101 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       }
     } catch (error) {
       console.error('Error fetching activity feed:', error);
+    }
+  },
+
+  // Challenge Progress
+  fetchChallengeProgress: async (challengeId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/community/challenges/${challengeId}/progress`);
+      if (response.ok) {
+        const data = await response.json();
+        set({ challengeProgress: data });
+      }
+    } catch (error) {
+      console.error('Error fetching challenge progress:', error);
+    }
+  },
+
+  // Chat actions
+  fetchGroupMessages: async (groupId: string, userId?: string) => {
+    try {
+      const url = userId
+        ? `${API_URL}/api/community/groups/${groupId}/messages?user_id=${userId}`
+        : `${API_URL}/api/community/groups/${groupId}/messages`;
+      
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        set({ groupMessages: data.messages });
+      }
+    } catch (error) {
+      console.error('Error fetching group messages:', error);
+    }
+  },
+
+  sendGroupMessage: async (groupId: string, userId: string, content: string, type: string = 'message') => {
+    try {
+      const response = await fetch(`${API_URL}/api/community/groups/${groupId}/messages?user_id=${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, message_type: type }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error sending message:', error);
+      return false;
+    }
+  },
+
+  // Report & Block actions
+  reportUser: async (reporterId: string, reportedId: string, reason: string, description?: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/community/report?reporter_id=${reporterId}&reported_user_id=${reportedId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, description }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error reporting user:', error);
+      return false;
+    }
+  },
+
+  blockUser: async (blockerId: string, targetId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/community/block/${targetId}?blocker_id=${blockerId}`, {
+        method: 'POST',
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error blocking user:', error);
+      return false;
+    }
+  },
+
+  unblockUser: async (blockerId: string, targetId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/community/block/${targetId}?blocker_id=${blockerId}`, {
+        method: 'DELETE',
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      return false;
+    }
+  },
+
+  fetchBlockedUsers: async (userId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/community/blocked?user_id=${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        set({ blockedUsers: data.blocked_users.map((u: any) => u.user_id) });
+      }
+    } catch (error) {
+      console.error('Error fetching blocked users:', error);
     }
   },
 }));

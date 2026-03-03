@@ -158,6 +158,18 @@ LifeMicro is a cross-platform AI-powered life coach mobile app that helps users 
     - User-created group challenges with voting system
     - Global leaderboard (tasks/streak/trust)
     - Activity feed from followed users
+16. **Group Chat & Announcements (DONE)**: Public group messaging system:
+    - All messages public for accountability
+    - Admin-only announcements
+    - Pinned messages support
+17. **Challenge Progress Tracking (DONE)**: Real-time progress for challenges:
+    - Individual participant progress
+    - Total challenge progress
+    - Completion tracking with reward distribution
+18. **Reporting System (DONE)**: User safety features:
+    - Report users for spam/harassment/cheating/inappropriate content
+    - Block users (hide from feed)
+    - Report status tracking
 
 ### ⏳ Placeholder/Future
 1. Actual camera capture for avatar (expo-camera installed, placeholder generates simple avatar)
