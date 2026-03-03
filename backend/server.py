@@ -85,6 +85,12 @@ class User(BaseModel):
     onboarding_completed: bool = False
     streak_count: int = 0
     last_active_date: Optional[str] = None
+    # Anti-cheat fields
+    trust_score: int = 75  # Default starting score
+    verified_task_count: int = 0
+    suspicious_flag_count: int = 0
+    # Character reference
+    character_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -109,11 +115,26 @@ class MicroTask(BaseModel):
     goal_category: GoalType
     context_question: Optional[str] = None
     context_answer: Optional[str] = None
+    # Anti-cheat fields
+    started_at: Optional[datetime] = None
+    requires_sensor_validation: bool = False
+    requires_verification: bool = False
+    verification_type: Optional[str] = None
+    verification_data: Optional[Dict[str, Any]] = None
+    validation_status: Optional[str] = None  # validated, pending_review, suspicious
+    sensor_data: Optional[Dict[str, Any]] = None
+    # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None
 
+class TaskStart(BaseModel):
+    task_id: str
+
 class TaskComplete(BaseModel):
     task_id: str
+    verification_response: Optional[Dict[str, Any]] = None
+    sensor_data: Optional[Dict[str, Any]] = None
+    reflection_text: Optional[str] = None
 
 class TaskSkip(BaseModel):
     task_id: str
@@ -521,7 +542,7 @@ async def get_user_tasks(
 
 @api_router.post("/tasks/complete")
 async def complete_task(task_complete: TaskComplete):
-    """Mark a task as completed and award tokens"""
+    """Mark a task as completed with anti-cheat validation"""
     task = await db.tasks.find_one({"id": task_complete.task_id})
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -529,71 +550,208 @@ async def complete_task(task_complete: TaskComplete):
     if task["status"] != TaskStatus.PENDING:
         raise HTTPException(status_code=400, detail="Task already processed")
     
-    # Update task status
+    user_id = task["user_id"]
+    user = await db.users.find_one({"id": user_id})
+    trust_score = user.get("trust_score", 75) if user else 75
+    completed_at = datetime.utcnow()
+    
+    # ===== ANTI-CHEAT VALIDATION =====
+    trust_adjustments = []
+    validation_status = "validated"
+    is_verified = True
+    
+    # 1. Time-based validation
+    started_at = task.get("started_at")
+    if started_at:
+        if isinstance(started_at, str):
+            started_at = datetime.fromisoformat(started_at)
+        
+        time_validation = validate_completion_time(
+            started_at, completed_at, task.get("time_estimate", "5 min")
+        )
+        
+        trust_adjustments.append(time_validation["trust_adjustment"])
+        
+        if not time_validation["is_valid"]:
+            validation_status = "suspicious"
+            is_verified = False
+        elif time_validation["is_suspicious"]:
+            validation_status = "pending_review"
+            is_verified = False
+    else:
+        # Task wasn't properly started - suspicious
+        trust_adjustments.append(-3)
+        validation_status = "pending_review"
+        is_verified = False
+    
+    # 2. Check for suspicious patterns
+    recent_completions = await db.tasks.find({
+        "user_id": user_id,
+        "status": TaskStatus.COMPLETED,
+        "completed_at": {"$gte": completed_at - timedelta(hours=2)}
+    }).to_list(20)
+    
+    pattern_check = detect_suspicious_patterns(user_id, [serialize_doc(t) for t in recent_completions], completed_at)
+    if pattern_check["is_suspicious"]:
+        trust_adjustments.append(pattern_check["trust_adjustment"])
+        validation_status = "suspicious"
+        is_verified = False
+    
+    # 3. Process verification response if provided
+    verification_penalty = 0
+    if task_complete.verification_response:
+        ver_type = task_complete.verification_response.get("type")
+        
+        if ver_type == "text_reflection" and task_complete.reflection_text:
+            reflection_result = validate_reflection(task_complete.reflection_text)
+            trust_adjustments.append(reflection_result["trust_adjustment"])
+            if reflection_result["is_valid"]:
+                is_verified = True
+        elif ver_type == "contextual_question":
+            # For contextual questions, any answer is accepted (it's about engagement)
+            trust_adjustments.append(2)
+            is_verified = True
+        elif ver_type == "photo_upload":
+            # Photo uploaded - trust boost
+            trust_adjustments.append(4)
+            is_verified = True
+    elif task.get("requires_verification"):
+        # Verification was required but skipped
+        strictness = get_verification_strictness(trust_score)
+        if strictness == "mandatory":
+            raise HTTPException(status_code=400, detail="Verification required to complete this task")
+        elif strictness == "strict":
+            verification_penalty = 0.5  # 50% of reward
+            trust_adjustments.append(-3)
+        elif strictness == "moderate":
+            verification_penalty = 0.25  # 25% of reward
+            trust_adjustments.append(-2)
+        # lenient: just log it
+        trust_adjustments.append(-1)
+    
+    # 4. Process sensor data if provided
+    if task_complete.sensor_data:
+        # Validate movement data for fitness tasks
+        if task.get("goal_category") in ["fitness", "health"]:
+            # Sensor data provided - trust boost
+            trust_adjustments.append(3)
+            is_verified = True
+    
+    # ===== CALCULATE REWARDS =====
+    base_reward = task.get("reward_amount", 10)
+    reward_multiplier = get_reward_multiplier(trust_score)
+    
+    # Apply verification penalty if any
+    final_multiplier = reward_multiplier * (1 - verification_penalty)
+    reward_amount = int(base_reward * final_multiplier)
+    
+    # Get settlement delay based on trust
+    settlement_delay = get_settlement_delay(trust_score)
+    is_pending = settlement_delay > 0 and validation_status != "validated"
+    
+    # ===== UPDATE TASK STATUS =====
     await db.tasks.update_one(
         {"id": task_complete.task_id},
-        {"$set": {"status": TaskStatus.COMPLETED, "completed_at": datetime.utcnow()}}
+        {"$set": {
+            "status": TaskStatus.COMPLETED,
+            "completed_at": completed_at,
+            "validation_status": validation_status,
+            "verification_data": task_complete.verification_response,
+            "sensor_data": task_complete.sensor_data,
+        }}
     )
     
-    # Award tokens
-    reward_amount = task.get("reward_amount", 10)
-    user_id = task["user_id"]
+    # ===== UPDATE TRUST SCORE =====
+    new_trust_score = calculate_new_trust_score(trust_score, trust_adjustments)
     
-    # Update wallet
-    transaction = TokenTransaction(
-        amount=reward_amount,
-        type=TransactionType.EARNED,
-        task_id=task_complete.task_id,
-        description=f"Completed: {task['title']}"
-    )
+    user_updates = {
+        "trust_score": new_trust_score,
+        "updated_at": datetime.utcnow(),
+    }
     
-    await db.wallets.update_one(
-        {"user_id": user_id},
-        {
-            "$inc": {"balance": reward_amount, "total_earned": reward_amount},
-            "$push": {"transactions": transaction.model_dump()}
-        }
-    )
+    if is_verified:
+        user_updates["verified_task_count"] = user.get("verified_task_count", 0) + 1
     
-    # Update streak
-    user = await db.users.find_one({"id": user_id})
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    last_active = user.get("last_active_date")
+    if validation_status == "suspicious":
+        user_updates["suspicious_flag_count"] = user.get("suspicious_flag_count", 0) + 1
     
+    # ===== AWARD TOKENS (unless pending) =====
     streak_bonus = 0
-    if last_active:
-        yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
-        if last_active == yesterday:
-            new_streak = user.get("streak_count", 0) + 1
-            # Streak bonus every 7 days
-            if new_streak % 7 == 0:
-                streak_bonus = new_streak * 2
-                bonus_transaction = TokenTransaction(
-                    amount=streak_bonus,
-                    type=TransactionType.STREAK,
-                    description=f"🔥 {new_streak} day streak bonus!"
-                )
-                await db.wallets.update_one(
-                    {"user_id": user_id},
-                    {
-                        "$inc": {"balance": streak_bonus, "total_earned": streak_bonus},
-                        "$push": {"transactions": bonus_transaction.model_dump()}
-                    }
-                )
-            await db.users.update_one(
-                {"id": user_id},
-                {"$set": {"streak_count": new_streak, "last_active_date": today}}
-            )
-        elif last_active != today:
-            # Streak broken
-            await db.users.update_one(
-                {"id": user_id},
-                {"$set": {"streak_count": 1, "last_active_date": today}}
-            )
+    if not is_pending:
+        # Update wallet
+        transaction = TokenTransaction(
+            amount=reward_amount,
+            type=TransactionType.EARNED,
+            task_id=task_complete.task_id,
+            description=f"Completed: {task['title']}" + (f" (x{final_multiplier:.1f})" if final_multiplier != 1.0 else "")
+        )
+        
+        await db.wallets.update_one(
+            {"user_id": user_id},
+            {
+                "$inc": {"balance": reward_amount, "total_earned": reward_amount},
+                "$push": {"transactions": transaction.model_dump()}
+            }
+        )
+        
+        # Update streak
+        today = completed_at.strftime("%Y-%m-%d")
+        last_active = user.get("last_active_date")
+        
+        if last_active:
+            yesterday = (completed_at - timedelta(days=1)).strftime("%Y-%m-%d")
+            if last_active == yesterday:
+                new_streak = user.get("streak_count", 0) + 1
+                # Streak bonus every 7 days
+                if new_streak % 7 == 0:
+                    streak_bonus = new_streak * 2
+                    bonus_transaction = TokenTransaction(
+                        amount=streak_bonus,
+                        type=TransactionType.STREAK,
+                        description=f"🔥 {new_streak} day streak bonus!"
+                    )
+                    await db.wallets.update_one(
+                        {"user_id": user_id},
+                        {
+                            "$inc": {"balance": streak_bonus, "total_earned": streak_bonus},
+                            "$push": {"transactions": bonus_transaction.model_dump()}
+                        }
+                    )
+                user_updates["streak_count"] = new_streak
+                user_updates["last_active_date"] = today
+                trust_adjustments.append(1)  # Streak bonus
+            elif last_active != today:
+                # Streak broken
+                user_updates["streak_count"] = 1
+                user_updates["last_active_date"] = today
+                trust_adjustments.append(-2)  # Streak broken
+        else:
+            user_updates["streak_count"] = 1
+            user_updates["last_active_date"] = today
     else:
-        await db.users.update_one(
-            {"id": user_id},
-            {"$set": {"streak_count": 1, "last_active_date": today}}
+        # Create pending transaction
+        await db.pending_rewards.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "task_id": task_complete.task_id,
+            "amount": reward_amount,
+            "settlement_date": completed_at + timedelta(hours=settlement_delay),
+            "status": "pending",
+            "created_at": completed_at,
+        })
+    
+    # Apply user updates
+    await db.users.update_one({"id": user_id}, {"$set": user_updates})
+    
+    # Update character if exists
+    character = await db.characters.find_one({"user_id": user_id})
+    if character and is_verified:
+        await db.characters.update_one(
+            {"user_id": user_id},
+            {
+                "$inc": {"verified_task_count": 1, "total_tasks_completed": 1},
+                "$set": {"last_active_date": completed_at, "updated_at": completed_at}
+            }
         )
     
     # Get updated wallet
@@ -601,10 +759,16 @@ async def complete_task(task_complete: TaskComplete):
     
     return {
         "success": True,
-        "tokens_earned": reward_amount,
+        "tokens_earned": reward_amount if not is_pending else 0,
+        "tokens_pending": reward_amount if is_pending else 0,
         "streak_bonus": streak_bonus,
         "new_balance": wallet.get("balance", 0),
-        "message": f"Great job! You earned {reward_amount} MICO!"
+        "trust_score": new_trust_score,
+        "trust_change": sum(trust_adjustments),
+        "validation_status": validation_status,
+        "is_verified": is_verified,
+        "reward_multiplier": final_multiplier,
+        "message": f"Great job! You earned {reward_amount} MICO!" if not is_pending else f"Task completed! {reward_amount} MICO will be released in {settlement_delay} hours.",
     }
 
 @api_router.post("/tasks/skip")
@@ -917,6 +1081,523 @@ async def get_user_stats(user_id: str):
         "total_redeemed": wallet.get("total_redeemed", 0) if wallet else 0,
         "redemption_count": redemption_count
     }
+
+# ---------- SEED DATA ----------
+
+# Import anti-cheat and character systems
+from anti_cheat import (
+    get_trust_tier, validate_completion_time, should_trigger_verification,
+    generate_verification_request, validate_reflection, detect_suspicious_patterns,
+    calculate_new_trust_score, get_reward_multiplier, get_settlement_delay,
+    TRUST_SCORE_CONFIG, TrustTier, TaskValidationStatus
+)
+from character_system import (
+    Character, CharacterStats, CharacterItem, ItemPurchase, UserInventory,
+    EvolutionTier, CharacterMood, ItemRarity, ItemCategory,
+    get_evolution_tier, can_evolve, calculate_mood, calculate_energy,
+    calculate_momentum, calculate_integrity, apply_deterioration,
+    can_purchase_item, get_pixel_settings, calculate_evolution_progress,
+    DEFAULT_ITEMS, EVOLUTION_CONFIG, MOOD_CONFIG, ITEM_RARITY_CONFIG
+)
+
+# ---------- ANTI-CHEAT ROUTES ----------
+
+@api_router.post("/tasks/start")
+async def start_task(task_start: TaskStart):
+    """Mark a task as started - required for time-based validation"""
+    task = await db.tasks.find_one({"id": task_start.task_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if task["status"] != TaskStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Task already processed")
+    
+    # Record start time
+    await db.tasks.update_one(
+        {"id": task_start.task_id},
+        {"$set": {"started_at": datetime.utcnow()}}
+    )
+    
+    # Get user for trust score
+    user = await db.users.find_one({"id": task["user_id"]})
+    trust_score = user.get("trust_score", 75) if user else 75
+    
+    # Check if verification will be required
+    verification = generate_verification_request(task, trust_score)
+    
+    return {
+        "success": True,
+        "started_at": datetime.utcnow().isoformat(),
+        "verification_required": verification is not None,
+        "verification": verification,
+        "min_completion_time": get_min_completion_time_for_task(task.get("time_estimate", "5 min")),
+    }
+
+def get_min_completion_time_for_task(time_estimate: str) -> int:
+    """Get minimum completion time in seconds"""
+    from anti_cheat import TIME_VALIDATION_CONFIG
+    return TIME_VALIDATION_CONFIG["min_time_ratios"].get(time_estimate, 30)
+
+@api_router.get("/trust-score/{user_id}")
+async def get_trust_score(user_id: str):
+    """Get user's trust score and tier information"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    trust_score = user.get("trust_score", 75)
+    tier = get_trust_tier(trust_score)
+    
+    return {
+        "trust_score": trust_score,
+        "tier": tier.value,
+        "tier_config": {
+            "reward_multiplier": TRUST_SCORE_CONFIG["reward_multipliers"][tier],
+            "verification_probability": TRUST_SCORE_CONFIG["verification_probability"][tier],
+            "verification_strictness": TRUST_SCORE_CONFIG["verification_strictness"][tier],
+            "settlement_delay_hours": TRUST_SCORE_CONFIG["settlement_delay"][tier],
+        },
+        "verified_task_count": user.get("verified_task_count", 0),
+        "suspicious_flag_count": user.get("suspicious_flag_count", 0),
+    }
+
+@api_router.get("/verification/{task_id}")
+async def get_task_verification(task_id: str):
+    """Get verification requirements for a specific task"""
+    task = await db.tasks.find_one({"id": task_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    user = await db.users.find_one({"id": task["user_id"]})
+    trust_score = user.get("trust_score", 75) if user else 75
+    
+    verification = generate_verification_request(task, trust_score)
+    
+    return {
+        "task_id": task_id,
+        "verification": verification,
+        "trust_tier": get_trust_tier(trust_score).value,
+    }
+
+# ---------- CHARACTER ROUTES ----------
+
+class CreateCharacterRequest(BaseModel):
+    user_id: str
+    name: str = "Micro"
+    avatar_pixel_data: Optional[Dict[str, Any]] = None
+
+class UpdateAvatarRequest(BaseModel):
+    avatar_pixel_data: Dict[str, Any]
+    avatar_original_url: Optional[str] = None
+
+class EquipItemRequest(BaseModel):
+    item_id: str
+
+class PurchaseItemRequest(BaseModel):
+    item_id: str
+
+@api_router.post("/character/create")
+async def create_character(request: CreateCharacterRequest):
+    """Create a new character for a user"""
+    user = await db.users.find_one({"id": request.user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if user already has a character
+    existing = await db.characters.find_one({"user_id": request.user_id})
+    if existing:
+        raise HTTPException(status_code=400, detail="User already has a character")
+    
+    # Create character
+    character = Character(
+        user_id=request.user_id,
+        name=request.name,
+        avatar_pixel_data=request.avatar_pixel_data,
+        avatar_created_at=datetime.utcnow() if request.avatar_pixel_data else None,
+    )
+    
+    await db.characters.insert_one(character.model_dump())
+    
+    # Update user with character reference
+    await db.users.update_one(
+        {"id": request.user_id},
+        {"$set": {"character_id": character.id}}
+    )
+    
+    # Create inventory for user
+    inventory = UserInventory(user_id=request.user_id)
+    await db.inventories.insert_one(inventory.model_dump())
+    
+    return serialize_doc(character.model_dump())
+
+@api_router.get("/character/{user_id}")
+async def get_character(user_id: str):
+    """Get user's character with all stats"""
+    character = await db.characters.find_one({"user_id": user_id})
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    user = await db.users.find_one({"id": user_id})
+    
+    # Calculate current stats
+    trust_score = user.get("trust_score", 75) if user else 75
+    streak_count = user.get("streak_count", 0) if user else 0
+    
+    # Get today's task completion
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_tasks = await db.tasks.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": today_start}
+    })
+    today_completed = await db.tasks.count_documents({
+        "user_id": user_id,
+        "status": TaskStatus.COMPLETED,
+        "completed_at": {"$gte": today_start}
+    })
+    
+    # Calculate days inactive
+    last_active = character.get("last_active_date")
+    if last_active:
+        if isinstance(last_active, str):
+            last_active = datetime.fromisoformat(last_active)
+        days_inactive = (datetime.utcnow() - last_active).days
+    else:
+        days_inactive = 0
+    
+    # Update stats
+    energy = calculate_energy(today_completed, max(today_tasks, 1))
+    momentum = calculate_momentum(streak_count, character.get("highest_streak", 0))
+    integrity = calculate_integrity(trust_score)
+    mood = calculate_mood(days_inactive, energy, trust_score)
+    
+    evolution_tier = get_evolution_tier(character.get("verified_task_count", 0))
+    evolution_progress = calculate_evolution_progress(
+        character.get("verified_task_count", 0),
+        evolution_tier
+    )
+    
+    # Get pixel settings based on evolution
+    pixel_settings = get_pixel_settings(evolution_tier)
+    
+    # Check evolution eligibility
+    temp_char = Character(**character)
+    evolution_check = can_evolve(temp_char, trust_score, streak_count)
+    
+    # Apply deterioration if inactive
+    deterioration = apply_deterioration(temp_char, days_inactive)
+    
+    return {
+        "character": serialize_doc(character),
+        "stats": {
+            "energy": energy,
+            "momentum": momentum,
+            "integrity": integrity,
+            "evolution_progress": evolution_progress,
+        },
+        "mood": mood.value,
+        "mood_config": MOOD_CONFIG.get(mood, {}),
+        "evolution": {
+            "current_tier": evolution_tier.value,
+            "tier_config": EVOLUTION_CONFIG[evolution_tier],
+            "can_evolve": evolution_check,
+            "pixel_settings": pixel_settings,
+        },
+        "deterioration": deterioration if deterioration["mood_changed"] or deterioration["tier_regressed"] else None,
+        "days_inactive": days_inactive,
+    }
+
+@api_router.put("/character/{user_id}/avatar")
+async def update_avatar(user_id: str, request: UpdateAvatarRequest):
+    """Update character's pixelated avatar from camera capture"""
+    character = await db.characters.find_one({"user_id": user_id})
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    await db.characters.update_one(
+        {"user_id": user_id},
+        {
+            "$set": {
+                "avatar_pixel_data": request.avatar_pixel_data,
+                "avatar_original_url": request.avatar_original_url,
+                "avatar_created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+        }
+    )
+    
+    return {"success": True, "message": "Avatar updated successfully"}
+
+@api_router.get("/character/{user_id}/evolution")
+async def get_evolution_status(user_id: str):
+    """Get detailed evolution status and requirements"""
+    character = await db.characters.find_one({"user_id": user_id})
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    user = await db.users.find_one({"id": user_id})
+    trust_score = user.get("trust_score", 75) if user else 75
+    streak_count = user.get("streak_count", 0) if user else 0
+    
+    verified_count = character.get("verified_task_count", 0)
+    current_tier = get_evolution_tier(verified_count)
+    
+    temp_char = Character(**character)
+    evolution_check = can_evolve(temp_char, trust_score, streak_count)
+    
+    # Get all tiers with requirements
+    all_tiers = []
+    for tier in EvolutionTier:
+        config = EVOLUTION_CONFIG[tier]
+        all_tiers.append({
+            "tier": tier.value,
+            "display_name": config["display_name"],
+            "description": config["description"],
+            "requirements": {
+                "min_tasks": config["min_tasks"],
+                "trust_requirement": config["trust_requirement"],
+                "streak_requirement": config["streak_requirement"],
+            },
+            "is_current": tier == current_tier,
+            "is_unlocked": verified_count >= config["min_tasks"],
+        })
+    
+    return {
+        "current_tier": current_tier.value,
+        "verified_task_count": verified_count,
+        "evolution_check": evolution_check,
+        "all_tiers": all_tiers,
+    }
+
+# ---------- CHARACTER ITEM STORE ROUTES ----------
+
+@api_router.get("/character-store")
+async def get_character_store(user_id: Optional[str] = None, category: Optional[str] = None, rarity: Optional[str] = None):
+    """Get available character items with eligibility check"""
+    query = {"is_active": True}
+    if category:
+        query["category"] = category
+    if rarity:
+        query["rarity"] = rarity
+    
+    items = await db.character_items.find(query).to_list(100)
+    
+    # Seed default items if empty
+    if not items:
+        for item in DEFAULT_ITEMS:
+            await db.character_items.insert_one(item.model_dump())
+        items = await db.character_items.find(query).to_list(100)
+    
+    # If user provided, check eligibility for each item
+    user_data = None
+    if user_id:
+        user = await db.users.find_one({"id": user_id})
+        character = await db.characters.find_one({"user_id": user_id})
+        inventory = await db.inventories.find_one({"user_id": user_id})
+        wallet = await db.wallets.find_one({"user_id": user_id})
+        
+        if user and character:
+            user_data = {
+                "trust_score": user.get("trust_score", 75),
+                "streak_count": user.get("streak_count", 0),
+                "verified_task_count": character.get("verified_task_count", 0),
+                "wallet_balance": wallet.get("balance", 0) if wallet else 0,
+                "owned_items": inventory.get("items", []) if inventory else [],
+            }
+    
+    result_items = []
+    for item in items:
+        item_data = serialize_doc(item)
+        
+        if user_data:
+            # Check if already owned
+            item_data["owned"] = item["id"] in user_data["owned_items"]
+            
+            # Check eligibility
+            if not item_data["owned"]:
+                rarity_config = ITEM_RARITY_CONFIG.get(ItemRarity(item["rarity"]), {})
+                item_data["eligible"] = (
+                    user_data["trust_score"] >= item.get("trust_requirement", 0) and
+                    user_data["streak_count"] >= item.get("streak_requirement", 0) and
+                    user_data["verified_task_count"] >= item.get("verified_requirement", 0)
+                )
+                item_data["can_afford"] = user_data["wallet_balance"] >= item.get("base_price", 0)
+        
+        result_items.append(item_data)
+    
+    return {"items": result_items}
+
+@api_router.post("/character/{user_id}/purchase")
+async def purchase_character_item(user_id: str, request: PurchaseItemRequest):
+    """Purchase a character item"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    character = await db.characters.find_one({"user_id": user_id})
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    item = await db.character_items.find_one({"id": request.item_id})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    wallet = await db.wallets.find_one({"user_id": user_id})
+    inventory = await db.inventories.find_one({"user_id": user_id})
+    
+    # Check if already owned
+    owned_items = inventory.get("items", []) if inventory else []
+    if request.item_id in owned_items:
+        raise HTTPException(status_code=400, detail="Item already owned")
+    
+    # Get last purchase for cooldown check
+    last_purchase = await db.item_purchases.find_one(
+        {"user_id": user_id},
+        sort=[("created_at", -1)]
+    )
+    last_purchase_time = last_purchase.get("created_at") if last_purchase else None
+    
+    # Check purchase eligibility
+    item_obj = CharacterItem(**item)
+    eligibility = can_purchase_item(
+        user_id=user_id,
+        item=item_obj,
+        trust_score=user.get("trust_score", 75),
+        streak_count=user.get("streak_count", 0),
+        verified_task_count=character.get("verified_task_count", 0),
+        wallet_balance=wallet.get("balance", 0) if wallet else 0,
+        last_purchase_time=last_purchase_time,
+        inventory_count_for_category=inventory.get("items_by_category", {}).get(item["category"], 0) if inventory else 0,
+    )
+    
+    if not eligibility["can_purchase"]:
+        raise HTTPException(status_code=400, detail=f"Cannot purchase: {', '.join(eligibility['blockers'])}")
+    
+    # Process purchase
+    trust_tier = get_trust_tier(user.get("trust_score", 75))
+    settlement_delay = get_settlement_delay(user.get("trust_score", 75))
+    
+    # Deduct tokens
+    token_cost = item["base_price"]
+    await db.wallets.update_one(
+        {"user_id": user_id},
+        {
+            "$inc": {"balance": -token_cost, "total_redeemed": token_cost},
+            "$push": {"transactions": {
+                "id": str(uuid.uuid4()),
+                "amount": -token_cost,
+                "type": "redeemed",
+                "item_id": request.item_id,
+                "description": f"Purchased: {item['name']}",
+                "timestamp": datetime.utcnow(),
+            }}
+        }
+    )
+    
+    # Create purchase record
+    purchase = ItemPurchase(
+        user_id=user_id,
+        character_id=character["id"],
+        item_id=request.item_id,
+        item_name=item["name"],
+        rarity=item["rarity"],
+        tokens_spent=token_cost,
+        status="pending" if settlement_delay > 0 else "completed",
+        settlement_date=datetime.utcnow() + timedelta(hours=settlement_delay) if settlement_delay > 0 else datetime.utcnow(),
+    )
+    await db.item_purchases.insert_one(purchase.model_dump())
+    
+    # Add to inventory (or mark as pending)
+    if settlement_delay == 0:
+        await db.inventories.update_one(
+            {"user_id": user_id},
+            {
+                "$push": {"items": request.item_id},
+                "$inc": {f"items_by_category.{item['category']}": 1},
+                "$set": {"updated_at": datetime.utcnow()}
+            },
+            upsert=True
+        )
+    
+    # Update item stock if limited
+    if item.get("stock", -1) > 0:
+        await db.character_items.update_one(
+            {"id": request.item_id},
+            {"$inc": {"stock": -1}}
+        )
+    
+    return {
+        "success": True,
+        "purchase_id": purchase.id,
+        "item_name": item["name"],
+        "tokens_spent": token_cost,
+        "status": purchase.status,
+        "settlement_date": purchase.settlement_date.isoformat() if purchase.settlement_date else None,
+        "cooldown_expires": purchase.cooldown_expires_at.isoformat(),
+    }
+
+@api_router.get("/character/{user_id}/inventory")
+async def get_inventory(user_id: str):
+    """Get user's character item inventory"""
+    inventory = await db.inventories.find_one({"user_id": user_id})
+    if not inventory:
+        return {"items": [], "items_by_category": {}}
+    
+    # Get full item details for owned items
+    owned_items = []
+    for item_id in inventory.get("items", []):
+        item = await db.character_items.find_one({"id": item_id})
+        if item:
+            owned_items.append(serialize_doc(item))
+    
+    return {
+        "items": owned_items,
+        "items_by_category": inventory.get("items_by_category", {}),
+    }
+
+@api_router.post("/character/{user_id}/equip")
+async def equip_item(user_id: str, request: EquipItemRequest):
+    """Equip an item to the character"""
+    character = await db.characters.find_one({"user_id": user_id})
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    inventory = await db.inventories.find_one({"user_id": user_id})
+    if not inventory or request.item_id not in inventory.get("items", []):
+        raise HTTPException(status_code=400, detail="Item not in inventory")
+    
+    item = await db.character_items.find_one({"id": request.item_id})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    # Equip item in its category slot
+    category = item["category"]
+    equipped_items = character.get("equipped_items", {})
+    equipped_items[category] = request.item_id
+    
+    await db.characters.update_one(
+        {"user_id": user_id},
+        {"$set": {"equipped_items": equipped_items, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"success": True, "equipped": {category: request.item_id}}
+
+@api_router.post("/character/{user_id}/unequip")
+async def unequip_item(user_id: str, category: str):
+    """Unequip an item from a category slot"""
+    character = await db.characters.find_one({"user_id": user_id})
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    equipped_items = character.get("equipped_items", {})
+    if category in equipped_items:
+        del equipped_items[category]
+        
+        await db.characters.update_one(
+            {"user_id": user_id},
+            {"$set": {"equipped_items": equipped_items, "updated_at": datetime.utcnow()}}
+        )
+    
+    return {"success": True, "unequipped_category": category}
 
 # ---------- SEED DATA ----------
 
